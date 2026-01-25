@@ -1516,22 +1516,21 @@ function ProjectManager({
   // Use the year from Revenue Targets section (admin panel header)
   const selectedYear = yearFromRevenue || currentYear;
 
-  // Update form data years when yearFromRevenue changes
+  // Update form data years when yearFromRevenue changes (header year selector)
+  // When editing a project, do NOT clear start/end month and dates — they come from the project
   useEffect(() => {
-    if (yearFromRevenue) {
-      // Update form data years to match the header year
+    if (yearFromRevenue && !editingId) {
       setFormData((prev) => ({
         ...prev,
         start_year: yearFromRevenue.toString(),
         end_year: yearFromRevenue.toString(),
-        // Clear months and dates when year changes
         start_month: "",
         end_month: "",
         start_date: "",
         end_date: "",
       }));
     }
-  }, [yearFromRevenue]);
+  }, [yearFromRevenue, editingId]);
 
   // Check for project ID from sessionStorage (from month page)
   // This useEffect needs to be after handleEdit is defined, so we'll move it later
