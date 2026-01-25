@@ -405,10 +405,8 @@ export default function DeveloperDashboard() {
     );
   }
 
-  const currentUser = sessionData.user;
-
   // Show redirect message for admin users
-  if (currentUser?.role === "admin") {
+  if (sessionData.user.role === "admin") {
     return (
       <div className="space-y-6">
         <div className="text-center py-12">
@@ -421,7 +419,7 @@ export default function DeveloperDashboard() {
   }
 
   // Show message if user doesn't have a developer record
-  if (currentUser && !currentDeveloper) {
+  if (!currentDeveloper) {
     return (
       <div className="space-y-6">
         <div className="text-center py-12">
@@ -430,7 +428,7 @@ export default function DeveloperDashboard() {
             No Developer Record Found
           </p>
           <p className="text-sm text-muted-foreground mt-2">
-            Your account ({currentUser.email}) is not associated with a developer record.
+            Your account ({sessionData.user.email}) is not associated with a developer record.
             Please contact an administrator to set up your developer profile.
           </p>
         </div>
