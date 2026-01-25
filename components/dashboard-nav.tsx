@@ -9,6 +9,7 @@ import {
   AlertTriangle,
   Settings,
   LogOut,
+  LogIn,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -47,11 +48,15 @@ export function DashboardNav() {
   const router = useRouter();
   const { toast } = useToast();
   const [user, setUser] = useState<{ role: string; name: string } | null>(null);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     fetch("/api/auth/session")
       .then((res) => res.json())
-      .then((data) => setUser(data.user));
+      .then((data) => {
+        setUser(data.user);
+        setLoaded(true);
+      });
   }, []);
 
   const handleLogout = async () => {
@@ -77,14 +82,34 @@ export function DashboardNav() {
     return allowedRoles.includes(user.role);
   });
 
-  // Show loading state or empty nav if no user
-  if (!user) {
+  // Loading: session not yet fetched
+  if (!loaded) {
     return (
       <div className="flex items-center gap-4">
         <nav className="flex items-center space-x-1">
           <div className="px-4 py-2 text-sm text-muted-foreground">
             Loading...
           </div>
+        </nav>
+      </div>
+    );
+  }
+
+  // Loaded but no user (invalid/expired session) — show Login
+  if (!user) {
+    return (
+      <div className="flex items-center gap-4">
+        <nav className="flex items-center space-x-1">
+          <Link
+            href="/login"
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
+              "text-muted-foreground hover:text-foreground hover:bg-muted"
+            )}
+          >
+            <LogIn className="h-4 w-4" />
+            Login
+          </Link>
         </nav>
       </div>
     );

@@ -83,7 +83,6 @@ export default function DeveloperDashboard() {
 
   // Fetch current user session
   const { data: sessionData } = useSWR("/api/auth/session", fetcher);
-  const currentUser = sessionData?.user;
 
   // Fetch developers to find current user's developer record
   const { data: developers = [] } = useSWR<Developer[]>(
@@ -91,7 +90,7 @@ export default function DeveloperDashboard() {
     fetcher
   );
   const currentDeveloper = developers.find(
-    (d) => d.email === currentUser?.email
+    (d) => d.email === sessionData?.user?.email
   );
 
   // Fetch all tasks for the logged-in user's developer record
@@ -364,15 +363,24 @@ export default function DeveloperDashboard() {
     return formatDuration(elapsed);
   };
 
+  // Clear invalid/expired session and redirect to login
+  useEffect(() => {
+    if (sessionData !== undefined && sessionData.user === null) {
+      fetch("/api/auth/logout", { method: "POST" }).finally(() => {
+        router.push("/login");
+      });
+    }
+  }, [sessionData, router]);
+
   // Redirect admin users to admin panel
   useEffect(() => {
-    if (currentUser?.role === "admin") {
+    if (sessionData?.user?.role === "admin") {
       router.push("/admin");
     }
-  }, [currentUser, router]);
+  }, [sessionData?.user, router]);
 
-  // Show loading state while fetching user data
-  if (!currentUser) {
+  // Show loading state while fetching session
+  if (sessionData === undefined) {
     return (
       <div className="space-y-6">
         <div className="text-center py-12">
@@ -383,6 +391,21 @@ export default function DeveloperDashboard() {
       </div>
     );
   }
+
+  // Invalid or expired session — logout + redirect (useEffect above)
+  if (!sessionData.user) {
+    return (
+      <div className="space-y-6">
+        <div className="text-center py-12">
+          <p className="text-lg font-medium text-muted-foreground">
+            Redirecting to login...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const currentUser = sessionData.user;
 
   // Show redirect message for admin users
   if (currentUser?.role === "admin") {
