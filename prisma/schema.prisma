@@ -1,0 +1,254 @@
+// This is your Prisma schema file,
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // directUrl = env("DIRECT_URL")
+}
+
+
+
+model YearTarget {
+  id            String   @id @default(uuid()) @db.Uuid
+  year          Int      @unique
+  minimumAmount Decimal  @map("minimum_amount") @db.Decimal(10, 2)
+  actualAmount  Decimal  @default(0) @map("actual_amount") @db.Decimal(10, 2)
+  maximumAmount Decimal  @map("maximum_amount") @db.Decimal(10, 2)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("year_targets")
+  @@index([year], map: "idx_year_targets_year")
+}
+
+model RevenueTarget {
+  id            String   @id @default(uuid()) @db.Uuid
+  month         DateTime @unique @db.Date
+  targetAmount  Decimal  @map("target_amount") @db.Decimal(10, 2)
+  actualAmount  Decimal  @default(0) @map("actual_amount") @db.Decimal(10, 2)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("revenue_targets")
+  @@index([month], map: "idx_revenue_targets_month")
+}
+
+model QuarterTarget {
+  id            String   @id @default(uuid()) @db.Uuid
+  year          Int
+  quarter       Int      // 1, 2, 3, or 4
+  minimumAmount Decimal  @map("minimum_amount") @db.Decimal(10, 2)
+  maximumAmount Decimal  @map("maximum_amount") @db.Decimal(10, 2)
+  actualAmount  Decimal  @default(0) @map("actual_amount") @db.Decimal(10, 2)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([year, quarter], map: "uq_quarter_targets_year_quarter")
+  @@map("quarter_targets")
+  @@index([year], map: "idx_quarter_targets_year")
+  @@index([quarter], map: "idx_quarter_targets_quarter")
+}
+
+model Client {
+  id            String   @id @default(uuid()) @db.Uuid
+  name          String
+  industry      String?
+  contactPerson String?  @map("contact_person")
+  email         String?
+  phone         String?
+  status        String   @default("active") @db.VarChar
+  lifetimeValue Decimal  @default(0) @map("lifetime_value") @db.Decimal(10, 2)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  projects      Project[]
+
+  @@map("clients")
+  @@index([status], map: "idx_clients_status")
+}
+
+model Project {
+  id          String   @id @default(uuid()) @db.Uuid
+  clientId    String   @map("client_id") @db.Uuid
+  name        String
+  description String?
+  status      String   @default("prospective") @db.VarChar
+  progressNotes String? @map("progress_notes") // For early-stage projects: proposal sent, meeting held, client contacted, etc.
+  startDate   DateTime? @map("start_date") @db.Date
+  endDate     DateTime? @map("end_date") @db.Date
+  budget      Decimal? @db.Decimal(10, 2)
+  actualCost  Decimal  @default(0) @map("actual_cost") @db.Decimal(10, 2)
+  revenue     Decimal  @default(0) @db.Decimal(10, 2)
+  amountPaid  Decimal  @default(0) @map("amount_paid") @db.Decimal(10, 2)
+  paymentDate DateTime? @map("payment_date") @db.Date
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  risks       Risk[]
+  expenses    Expense[]
+  developers  ProjectDeveloper[]
+  tasks       Task[]
+  milestones  Milestone[]
+
+  @@map("projects")
+  @@index([clientId], map: "idx_projects_client_id")
+  @@index([status], map: "idx_projects_status")
+}
+
+model Kpi {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  category    String
+  targetValue Decimal  @map("target_value") @db.Decimal(10, 2)
+  currentValue Decimal @default(0) @map("current_value") @db.Decimal(10, 2)
+  unit        String?
+  period      String   @default("monthly") @db.VarChar
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("kpis")
+}
+
+model Risk {
+  id                      String    @id @default(uuid()) @db.Uuid
+  projectId               String?   @map("project_id") @db.Uuid
+  title                   String
+  description             String?
+  category                String?
+  severity                String    @default("medium") @db.VarChar
+  probability             String    @default("medium") @db.VarChar
+  riskScore               Int?      @map("risk_score") // Auto-calculated: severity × probability
+  riskLevel               String?   @map("risk_level") @db.VarChar // Auto-derived: Low/Medium/High
+  impact                  String?
+  mitigationPlan          String?   @map("mitigation_plan")
+  status                  String    @default("identified") @db.VarChar
+  owner                   String?
+  identifiedDate          DateTime? @map("identified_date") @db.Date
+  targetResolutionDate    DateTime? @map("target_resolution_date") @db.Date
+  estimatedFinancialImpact Decimal? @map("estimated_financial_impact") @db.Decimal(10, 2)
+  createdAt               DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  project                 Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("risks")
+  @@index([severity], map: "idx_risks_severity")
+  @@index([status], map: "idx_risks_status")
+  @@index([projectId], map: "idx_risks_project_id")
+  @@index([riskLevel], map: "idx_risks_risk_level")
+}
+
+model Expense {
+  id        String    @id @default(uuid()) @db.Uuid
+  projectId String?   @map("project_id") @db.Uuid
+  category  String
+  amount    Decimal  @db.Decimal(10, 2)
+  spentAt   DateTime @map("spent_at") @db.Date
+  vendor    String?
+  note      String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  project   Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("expenses")
+  @@index([projectId], map: "idx_expenses_project_id")
+  @@index([spentAt], map: "idx_expenses_spent_at")
+  @@index([category], map: "idx_expenses_category")
+}
+
+model Developer {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  role      String
+  email     String?
+  phone     String?
+  hourlyRate Decimal? @map("hourly_rate") @db.Decimal(10, 2)
+  status    String   @default("active") @db.VarChar
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  projectAssignments ProjectDeveloper[]
+  tasks      Task[]
+
+  @@map("developers")
+  @@index([status], map: "idx_developers_status")
+}
+
+model ProjectDeveloper {
+  id         String    @id @default(uuid()) @db.Uuid
+  projectId  String    @map("project_id") @db.Uuid
+  developerId String?  @map("developer_id") @db.Uuid
+  name       String    // Keep for backward compatibility, but prefer developerId
+  role       String    // Keep for backward compatibility, but prefer developerId
+  amount     Decimal   @db.Decimal(10, 2)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  project    Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  developer  Developer? @relation(fields: [developerId], references: [id], onDelete: SetNull)
+
+  @@map("project_developers")
+  @@index([projectId], map: "idx_project_developers_project_id")
+  @@index([developerId], map: "idx_project_developers_developer_id")
+}
+
+model Milestone {
+  id          String   @id @default(uuid()) @db.Uuid
+  projectId   String   @map("project_id") @db.Uuid
+  title       String
+  description String?
+  startDate   DateTime? @map("start_date") @db.Date
+  dueDate     DateTime? @map("due_date") @db.Date
+  status      String   @default("not-started") @db.VarChar // not-started, in-progress, completed, on-hold
+  order       Int      @default(0) // For reordering milestones
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks       Task[]
+
+  @@map("milestones")
+  @@index([projectId], map: "idx_milestones_project_id")
+  @@index([status], map: "idx_milestones_status")
+  @@index([order], map: "idx_milestones_order")
+}
+
+model Task {
+  id            String    @id @default(uuid()) @db.Uuid
+  title         String
+  description   String?
+  status        String    @default("todo") @db.VarChar // todo, in-progress, done, blocked
+  developerId   String    @map("developer_id") @db.Uuid
+  projectId     String?   @map("project_id") @db.Uuid
+  milestoneId   String?   @map("milestone_id") @db.Uuid
+  estimatedHours Decimal? @map("estimated_hours") @db.Decimal(10, 2)
+  actualHours    Decimal  @default(0) @map("actual_hours") @db.Decimal(10, 2)
+  startTime      DateTime? @map("start_time") @db.Timestamptz(6)
+  endTime        DateTime? @map("end_time") @db.Timestamptz(6)
+  dueDate        DateTime? @map("due_date") @db.Date
+  priority       String    @default("medium") @db.VarChar // low, medium, high
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  developer      Developer @relation(fields: [developerId], references: [id], onDelete: Cascade)
+  project        Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  milestone      Milestone? @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+
+  @@map("tasks")
+  @@index([developerId], map: "idx_tasks_developer_id")
+  @@index([projectId], map: "idx_tasks_project_id")
+  @@index([milestoneId], map: "idx_tasks_milestone_id")
+  @@index([status], map: "idx_tasks_status")
+  @@index([priority], map: "idx_tasks_priority")
+}
+
+model User {
+  id        String   @id @default(uuid()) @db.Uuid
+  email     String   @unique
+  password  String   // Hashed password
+  name      String
+  role      String   @default("general") @db.VarChar // admin, developer, general
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("users")
+  @@index([email], map: "idx_users_email")
+  @@index([role], map: "idx_users_role")
+}
