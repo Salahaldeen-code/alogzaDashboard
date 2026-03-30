@@ -94,19 +94,24 @@ const fetcher = async (url: string) => {
 function ProjectMilestoneProgress({ projectId }: { projectId: string }) {
   const { data: milestones } = useSWR<any[]>(
     projectId ? `/api/projects/${projectId}/milestones` : null,
-    fetcher
+    fetcher,
   );
 
   const total = milestones?.length ?? 0;
-  const completed = (milestones ?? []).filter((m) => m?.status === "completed")
-    .length;
+  const completed = (milestones ?? []).filter(
+    (m) => m?.status === "completed",
+  ).length;
   const percentage = total > 0 ? (completed / total) * 100 : 0;
 
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between text-xs">
         <span className="text-muted-foreground">Milestone Completion</span>
-        <span className={total > 0 ? "text-muted-foreground" : "text-muted-foreground"}>
+        <span
+          className={
+            total > 0 ? "text-muted-foreground" : "text-muted-foreground"
+          }
+        >
           {milestones ? `${percentage.toFixed(1)}%` : "—"}
         </span>
       </div>
@@ -134,12 +139,11 @@ function AdminPageContent() {
     | "projects"
     | "risks"
     | "financials"
-    | "developers"
     | "users"
     | "tasks"
   >("revenue");
   const [sharedYear, setSharedYear] = useState<number>(
-    new Date().getFullYear()
+    new Date().getFullYear(),
   );
   const [user, setUser] = useState<{ name: string; role: string } | null>(null);
 
@@ -175,7 +179,6 @@ function AdminPageContent() {
         "projects",
         "risks",
         "financials",
-        "developers",
         "users",
         "tasks",
       ].includes(tabParam)
@@ -212,7 +215,7 @@ function AdminPageContent() {
                     <SelectItem key={year} value={year.toString()}>
                       {year}
                     </SelectItem>
-                  )
+                  ),
                 )}
               </SelectContent>
             </Select>
@@ -246,7 +249,6 @@ function AdminPageContent() {
           { id: "projects", label: "Projects" },
           { id: "risks", label: "Risks" },
           { id: "financials", label: "Financials" },
-          { id: "developers", label: "Developers" },
           { id: "users", label: "Users" },
           { id: "tasks", label: "Tasks" },
         ].map((tab) => (
@@ -276,7 +278,6 @@ function AdminPageContent() {
         <ProjectManager toast={toast} selectedYear={sharedYear} />
       )}
       {activeTab === "risks" && <RiskManager toast={toast} />}
-      {activeTab === "developers" && <DeveloperManager toast={toast} />}
       {activeTab === "users" && <UserManager toast={toast} />}
       {activeTab === "tasks" && <TaskManager toast={toast} />}
       {activeTab === "financials" && (
@@ -322,11 +323,11 @@ function RevenueTargetManager({
   const selectedYear = yearFromHeader || currentYear;
   const { data: yearTargets, error: yearError } = useSWR<any[]>(
     "/api/year-targets",
-    fetcher
+    fetcher,
   );
   const { data: revenues, error } = useSWR<any[]>(
     "/api/revenue-targets",
-    fetcher
+    fetcher,
   );
   const [yearTargetOpen, setYearTargetOpen] = useState(false);
   const [monthTargetOpen, setMonthTargetOpen] = useState(false);
@@ -343,7 +344,7 @@ function RevenueTargetManager({
   });
 
   const currentYearTarget = yearTargets?.find(
-    (yt: any) => yt.year === selectedYear
+    (yt: any) => yt.year === selectedYear,
   );
 
   const handleYearTargetSubmit = async (e: React.FormEvent) => {
@@ -603,7 +604,7 @@ function RevenueTargetManager({
                       })
                       .reduce(
                         (sum: number, mt: any) => sum + (mt.actual_amount || 0),
-                        0
+                        0,
                       ) || 0;
 
                   // Calculate status based on progress toward target
@@ -670,8 +671,8 @@ function RevenueTargetManager({
                         isCurrentQuarter && cardBgColor
                           ? `border-2 ${cardBgColor} ${cardBorderColor} ring-2 ring-primary ring-offset-2`
                           : isCurrentQuarter
-                          ? "border-2 border-primary bg-primary/5 ring-2 ring-primary ring-offset-2"
-                          : ""
+                            ? "border-2 border-primary bg-primary/5 ring-2 ring-primary ring-offset-2"
+                            : ""
                       }`}
                     >
                       <div className="mb-2 flex items-center justify-between">
@@ -1259,7 +1260,12 @@ function ClientManager({ toast }: { toast: any }) {
       return false;
     if (clientFilters.search) {
       const q = clientFilters.search.toLowerCase();
-      const haystack = [c.name, c.industry ?? "", c.email ?? "", c.contact_person ?? ""]
+      const haystack = [
+        c.name,
+        c.industry ?? "",
+        c.email ?? "",
+        c.contact_person ?? "",
+      ]
         .join(" ")
         .toLowerCase();
       if (!haystack.includes(q)) return false;
@@ -1519,9 +1525,7 @@ function ClientManager({ toast }: { toast: any }) {
             <Button
               variant="outline"
               size="sm"
-              onClick={() =>
-                setClientFilters({ search: "", status: "all" })
-              }
+              onClick={() => setClientFilters({ search: "", status: "all" })}
             >
               Clear Filters
             </Button>
@@ -1536,46 +1540,46 @@ function ClientManager({ toast }: { toast: any }) {
           </div>
         ) : (
           filteredClients.map((client) => (
-          <Card key={client.id}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <div>
-                <CardTitle className="text-base font-medium">
-                  {client.name}
-                </CardTitle>
-                <CardDescription>{client.industry}</CardDescription>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleEdit(client)}
-                >
-                  <Pencil className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => handleDelete(client.id)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 gap-4 text-sm">
+            <Card key={client.id}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <div>
-                  <p className="text-muted-foreground">Status</p>
-                  <p className="font-medium capitalize">{client.status}</p>
+                  <CardTitle className="text-base font-medium">
+                    {client.name}
+                  </CardTitle>
+                  <CardDescription>{client.industry}</CardDescription>
                 </div>
-                <div>
-                  <p className="text-muted-foreground">Lifetime Value</p>
-                  <p className="font-medium">
-                    RM{client.lifetime_value.toLocaleString()}
-                  </p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleEdit(client)}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => handleDelete(client.id)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-muted-foreground">Status</p>
+                    <p className="font-medium capitalize">{client.status}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Lifetime Value</p>
+                    <p className="font-medium">
+                      RM{client.lifetime_value.toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           ))
         )}
       </div>
@@ -1595,28 +1599,29 @@ function ProjectManager({
   const { data: clients } = useSWR<Client[]>("/api/clients", fetcher);
   const { data: revenues } = useSWR<any[]>("/api/revenue-targets", fetcher);
   const { data: developers } = useSWR<Developer[]>("/api/developers", fetcher);
+  const { data: users } = useSWR<User[]>("/api/users", fetcher);
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
   // Fetch project developers when editing
   const { data: projectDevelopersData } = useSWR<any[]>(
     editingId ? `/api/projects/${editingId}/developers` : null,
-    fetcher
+    fetcher,
   );
 
   // Milestones & Tasks state
   const { data: milestones, mutate: mutateMilestones } = useSWR<any[]>(
     editingId ? `/api/projects/${editingId}/milestones` : null,
-    fetcher
+    fetcher,
   );
   const [milestoneDialogOpen, setMilestoneDialogOpen] = useState(false);
   const [editingMilestoneId, setEditingMilestoneId] = useState<string | null>(
-    null
+    null,
   );
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [selectedMilestoneId, setSelectedMilestoneId] = useState<string | null>(
-    null
+    null,
   );
   // Temporary milestones for new project creation
   const [tempMilestones, setTempMilestones] = useState<any[]>([]);
@@ -1787,7 +1792,7 @@ function ProjectManager({
     if (!startDate && formData.start_month && formData.start_year) {
       startDate = `${formData.start_year}-${formData.start_month.padStart(
         2,
-        "0"
+        "0",
       )}-01`;
     }
     // If no specific end date but month is selected, use last day of month
@@ -1796,18 +1801,18 @@ function ProjectManager({
       const lastDay = new Date(
         Number.parseInt(formData.end_year),
         Number.parseInt(formData.end_month),
-        0
+        0,
       ).getDate();
       endDate = `${formData.end_year}-${formData.end_month.padStart(
         2,
-        "0"
+        "0",
       )}-${lastDay.toString().padStart(2, "0")}`;
     }
 
     // Calculate total amount paid from payments array
     const totalAmountPaid = formData.payments.reduce(
       (sum, payment) => sum + Number.parseFloat(payment.amount || "0"),
-      0
+      0,
     );
 
     // Get the latest payment date (most recent)
@@ -1869,7 +1874,7 @@ function ProjectManager({
                   status: tempMilestone.status || "not-started",
                   order: tempMilestone.order || 0,
                 }),
-              }
+              },
             );
 
             if (milestoneResponse.ok) {
@@ -1912,7 +1917,7 @@ function ProjectManager({
         if (editingId) {
           try {
             const existingDevs = await fetcher(
-              `/api/projects/${editingId}/developers`
+              `/api/projects/${editingId}/developers`,
             );
             for (const dev of existingDevs) {
               await fetch(`/api/projects/${editingId}/developers/${dev.id}`, {
@@ -2013,8 +2018,8 @@ function ProjectManager({
     const projectYear = startYear
       ? Number.parseInt(startYear)
       : endYear
-      ? Number.parseInt(endYear)
-      : selectedYear;
+        ? Number.parseInt(endYear)
+        : selectedYear;
 
     // Convert existing payment data to payments array
     // For now, if there's an existing payment, add it to the array
@@ -2119,12 +2124,17 @@ function ProjectManager({
     if (!editingId || !open || !projects) return;
     const project = projects.find((p) => p.id === editingId);
     if (!project) return;
-    const needStart = (project.start_date && (!formData.start_date || formData.start_date === ""));
-    const needEnd = (project.end_date && (!formData.end_date || formData.end_date === ""));
+    const needStart =
+      project.start_date &&
+      (!formData.start_date || formData.start_date === "");
+    const needEnd =
+      project.end_date && (!formData.end_date || formData.end_date === "");
     if (!needStart && !needEnd) return;
     setFormData((prev) => ({
       ...prev,
-      ...(needStart && { start_date: String(project.start_date!).slice(0, 10) }),
+      ...(needStart && {
+        start_date: String(project.start_date!).slice(0, 10),
+      }),
       ...(needEnd && { end_date: String(project.end_date!).slice(0, 10) }),
     }));
   }, [editingId, open, projects, formData.start_date, formData.end_date]);
@@ -2161,16 +2171,15 @@ function ProjectManager({
   const filteredProjects = projectsWithClients.filter((p) => {
     if (projectFilters.status !== "all" && p.status !== projectFilters.status)
       return false;
-    if (projectFilters.client_id !== "all" && p.client_id !== projectFilters.client_id)
+    if (
+      projectFilters.client_id !== "all" &&
+      p.client_id !== projectFilters.client_id
+    )
       return false;
 
     if (projectFilters.search) {
       const q = projectFilters.search.toLowerCase();
-      const haystack = [
-        p.name,
-        p.clientName,
-        p.description ?? "",
-      ]
+      const haystack = [p.name, p.clientName, p.description ?? ""]
         .join(" ")
         .toLowerCase();
       if (!haystack.includes(q)) return false;
@@ -2181,23 +2190,17 @@ function ProjectManager({
 
   // Calculate summary metrics (respect filters)
   const activeProjects = filteredProjects.filter(
-    (p) => p.status === "in-progress"
+    (p) => p.status === "in-progress",
   );
   const completedProjects = filteredProjects.filter(
-    (p) => p.status === "completed"
+    (p) => p.status === "completed",
   );
   const totalBudget = filteredProjects.reduce(
     (sum, p) => sum + (p.budget || 0),
-    0
+    0,
   );
-  const totalRevenue = filteredProjects.reduce(
-    (sum, p) => sum + p.revenue,
-    0
-  );
-  const totalCost = filteredProjects.reduce(
-    (sum, p) => sum + p.actual_cost,
-    0
-  );
+  const totalRevenue = filteredProjects.reduce((sum, p) => sum + p.revenue, 0);
+  const totalCost = filteredProjects.reduce((sum, p) => sum + p.actual_cost, 0);
   const totalProfit = totalRevenue - totalCost;
   const profitMargin =
     totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
@@ -2301,7 +2304,7 @@ function ProjectManager({
         // Check if editing a temp milestone (for new project)
         if (!editingId && tempMilestones.length > 0) {
           const milestone = tempMilestones.find(
-            (m: any) => m.tempId === editingMilestoneId
+            (m: any) => m.tempId === editingMilestoneId,
           );
           if (milestone) {
             setMilestoneFormData({
@@ -2317,7 +2320,7 @@ function ProjectManager({
         // Check if editing an existing milestone (for existing project)
         if (editingId && milestones) {
           const milestone = milestones.find(
-            (m: any) => m.id === editingMilestoneId
+            (m: any) => m.id === editingMilestoneId,
           );
           if (milestone) {
             setMilestoneFormData({
@@ -2381,7 +2384,8 @@ function ProjectManager({
       if (start && due && due < start) {
         toast({
           title: "Invalid Date Range",
-          description: "Milestone due date cannot be before milestone start date.",
+          description:
+            "Milestone due date cannot be before milestone start date.",
           variant: "destructive",
         });
         return;
@@ -2409,8 +2413,8 @@ function ProjectManager({
                     ...milestoneFormData,
                     order: m.order,
                   }
-                : m
-            )
+                : m,
+            ),
           );
         } else {
           // Create new temp milestone
@@ -2516,7 +2520,10 @@ function ProjectManager({
               {(projectStart || projectEnd) && (
                 <div className="col-span-2 text-xs text-muted-foreground -mt-1">
                   Project window:{" "}
-                  {projectWindowStartMin ? formatDate(projectWindowStartMin) : "—"} -{" "}
+                  {projectWindowStartMin
+                    ? formatDate(projectWindowStartMin)
+                    : "—"}{" "}
+                  -{" "}
                   {projectWindowEndMax ? formatDate(projectWindowEndMax) : "—"}
                 </div>
               )}
@@ -2616,7 +2623,7 @@ function ProjectManager({
     // Fetch project developers
     const { data: projectDevelopersData } = useSWR<any[]>(
       editingId ? `/api/projects/${editingId}/developers` : null,
-      fetcher
+      fetcher,
     );
 
     // Get project developers with developer details
@@ -2650,10 +2657,10 @@ function ProjectManager({
         // Check if editing a temp task (for new project)
         if (!editingId && tempMilestones.length > 0) {
           const milestone = tempMilestones.find(
-            (m: any) => m.tempId === selectedMilestoneId
+            (m: any) => m.tempId === selectedMilestoneId,
           );
           const task = milestone?.tasks?.find(
-            (t: any) => t.tempId === editingTaskId
+            (t: any) => t.tempId === editingTaskId,
           );
           if (task) {
             setTaskFormData({
@@ -2672,10 +2679,10 @@ function ProjectManager({
         // Check if editing an existing task (for existing project)
         if (editingId && milestones) {
           const milestone = milestones.find(
-            (m: any) => m.id === selectedMilestoneId
+            (m: any) => m.id === selectedMilestoneId,
           );
           const task = milestone?.tasks?.find(
-            (t: any) => t.id === editingTaskId
+            (t: any) => t.id === editingTaskId,
           );
           if (task) {
             setTaskFormData({
@@ -2743,7 +2750,7 @@ function ProjectManager({
                   return {
                     ...m,
                     tasks: m.tasks.map((t: any) =>
-                      t.tempId === editingTaskId ? taskData : t
+                      t.tempId === editingTaskId ? taskData : t,
                     ),
                   };
                 }
@@ -2753,7 +2760,7 @@ function ProjectManager({
                 };
               }
               return m;
-            })
+            }),
           );
           toast({
             title: `Task ${editingTaskId ? "updated" : "created"} successfully`,
@@ -2813,8 +2820,23 @@ function ProjectManager({
       : tempMilestones.find((m: any) => m.tempId === selectedMilestoneId);
     const minDate = selectedMilestone?.start_date || undefined;
 
+    // Include "general" users as possible task assignees.
+    // Task/developer assignment still uses `developer_id` in the DB, so we match general users by email
+    // to the corresponding row in `developers`.
+    const generalUserEmails = useMemo(() => {
+      const s = new Set<string>();
+      for (const u of users ?? []) {
+        if (u.role === "general" && u.email) s.add(u.email.toLowerCase());
+      }
+      return s;
+    }, [users]);
+
+    const generalDevelopers = (developers ?? []).filter(
+      (d) => d.email && generalUserEmails.has(d.email.toLowerCase())
+    );
+
     // Get developers from formData.selected_developers when creating new project
-    const availableDevelopers = editingId
+    const availableDevelopersBase = editingId
       ? projectDevelopers
       : formData.selected_developers
           .map((sd) => {
@@ -2822,6 +2844,25 @@ function ProjectManager({
             return dev;
           })
           .filter(Boolean);
+
+    // Union: project-selected developers + any developer rows linked to "general" users.
+    const combinedDevelopers = (() => {
+      const mapById = new Map<string, any>();
+      for (const d of availableDevelopersBase) {
+        if (!d) continue;
+        mapById.set(d.id, d);
+      }
+      for (const d of generalDevelopers) mapById.set(d.id, d);
+
+      // Keep current selection valid even if it isn't in the base lists.
+      const currentId = taskFormData.developer_id;
+      if (currentId && !mapById.has(currentId)) {
+        const missing = developers?.find((d) => d.id === currentId);
+        if (missing) mapById.set(missing.id, missing);
+      }
+
+      return Array.from(mapById.values());
+    })();
 
     return (
       <Dialog
@@ -2922,7 +2963,7 @@ function ProjectManager({
                     Assigned Developer{" "}
                     <span className="text-destructive">*</span>
                   </Label>
-                  {availableDevelopers.length === 0 ? (
+                  {combinedDevelopers.length === 0 ? (
                     <div className="p-3 border border-dashed rounded-md bg-muted/50">
                       <p className="text-sm text-muted-foreground">
                         No developers available. Please add developers to the
@@ -2945,7 +2986,7 @@ function ProjectManager({
                         <SelectValue placeholder="Select a developer" />
                       </SelectTrigger>
                       <SelectContent>
-                        {availableDevelopers.map((dev: any) => (
+                        {combinedDevelopers.map((dev: any) => (
                           <SelectItem key={dev.id} value={dev.id}>
                             <div className="flex flex-col">
                               <span className="font-medium">{dev.name}</span>
@@ -3188,9 +3229,7 @@ function ProjectManager({
               <Button
                 type="submit"
                 className="flex-1"
-                disabled={
-                  taskSubmitting || availableDevelopers.length === 0
-                }
+                disabled={taskSubmitting || combinedDevelopers.length === 0}
               >
                 {taskSubmitting ? (
                   <>
@@ -3408,12 +3447,12 @@ function ProjectManager({
                           onValueChange={(value) => {
                             if (value && value !== "none") {
                               const developer = developers.find(
-                                (d) => d.id === value
+                                (d) => d.id === value,
                               );
                               if (
                                 developer &&
                                 !formData.selected_developers.some(
-                                  (sd) => sd.developer_id === developer.id
+                                  (sd) => sd.developer_id === developer.id,
                                 )
                               ) {
                                 setFormData({
@@ -3446,8 +3485,8 @@ function ProjectManager({
                               .filter(
                                 (dev) =>
                                   !formData.selected_developers.some(
-                                    (sd) => sd.developer_id === dev.id
-                                  )
+                                    (sd) => sd.developer_id === dev.id,
+                                  ),
                               )
                               .map((developer) => (
                                 <SelectItem
@@ -3461,7 +3500,7 @@ function ProjectManager({
                                       {
                                         minimumFractionDigits: 2,
                                         maximumFractionDigits: 2,
-                                      }
+                                      },
                                     )}/hr)`}
                                 </SelectItem>
                               ))}
@@ -3474,7 +3513,7 @@ function ProjectManager({
                             {formData.selected_developers.map(
                               (selectedDev, index) => {
                                 const developer = developers.find(
-                                  (d) => d.id === selectedDev.developer_id
+                                  (d) => d.id === selectedDev.developer_id,
                                 );
                                 return (
                                   <div
@@ -3568,7 +3607,7 @@ function ProjectManager({
                                     </div>
                                   </div>
                                 );
-                              }
+                              },
                             )}
                           </div>
                         )}
@@ -3641,7 +3680,7 @@ function ProjectManager({
                                       // Add if not already present
                                       if (
                                         !lines.some((line) =>
-                                          line.includes(option.label)
+                                          line.includes(option.label),
                                         )
                                       ) {
                                         setFormData({
@@ -3657,7 +3696,7 @@ function ProjectManager({
                                     } else {
                                       // Remove if present
                                       const filtered = lines.filter(
-                                        (line) => !line.includes(option.label)
+                                        (line) => !line.includes(option.label),
                                       );
                                       setFormData({
                                         ...formData,
@@ -3763,7 +3802,7 @@ function ProjectManager({
                                 "en-US",
                                 {
                                   month: "long",
-                                }
+                                },
                               );
                               return (
                                 <SelectItem key={r.id} value={monthValue}>
@@ -3809,7 +3848,7 @@ function ProjectManager({
                                 "en-US",
                                 {
                                   month: "long",
-                                }
+                                },
                               );
                               return (
                                 <SelectItem key={r.id} value={monthValue}>
@@ -4105,7 +4144,7 @@ function ProjectManager({
                           .reduce(
                             (sum, p) =>
                               sum + Number.parseFloat(p.amount || "0"),
-                            0
+                            0,
                           )
                           .toLocaleString(undefined, {
                             minimumFractionDigits: 2,
@@ -4124,9 +4163,9 @@ function ProjectManager({
                             formData.payments.reduce(
                               (sum, p) =>
                                 sum + Number.parseFloat(p.amount || "0"),
-                              0
+                              0,
                             ),
-                          0
+                          0,
                         ).toLocaleString(undefined, {
                           minimumFractionDigits: 2,
                           maximumFractionDigits: 2,
@@ -4144,7 +4183,7 @@ function ProjectManager({
                           const totalPaid = formData.payments.reduce(
                             (sum, p) =>
                               sum + Number.parseFloat(p.amount || "0"),
-                            0
+                            0,
                           );
                           if (totalPaid === 0) return "Unpaid";
                           if (totalPaid < projectPrice) return "Partially Paid";
@@ -4185,7 +4224,7 @@ function ProjectManager({
                     : tempMilestones.map((m) => {
                         const tasks = m.tasks || [];
                         const completedTasks = tasks.filter(
-                          (t: any) => t.status === "done"
+                          (t: any) => t.status === "done",
                         ).length;
                         const totalTasks = tasks.length;
                         const progress =
@@ -4221,18 +4260,18 @@ function ProjectManager({
                                         milestone.status === "completed"
                                           ? "default"
                                           : milestone.status === "in-progress"
-                                          ? "secondary"
-                                          : "outline"
+                                            ? "secondary"
+                                            : "outline"
                                       }
                                       className="text-xs"
                                     >
                                       {milestone.status === "not-started"
                                         ? "Not Started"
                                         : milestone.status === "in-progress"
-                                        ? "In Progress"
-                                        : milestone.status === "completed"
-                                        ? "Completed"
-                                        : "On Hold"}
+                                          ? "In Progress"
+                                          : milestone.status === "completed"
+                                            ? "Completed"
+                                            : "On Hold"}
                                     </Badge>
                                   </div>
                                   {milestone.description && (
@@ -4245,7 +4284,7 @@ function ProjectManager({
                                       <span>
                                         Start:{" "}
                                         {new Date(
-                                          milestone.start_date
+                                          milestone.start_date,
                                         ).toLocaleDateString()}
                                       </span>
                                     )}
@@ -4253,7 +4292,7 @@ function ProjectManager({
                                       <span>
                                         Due:{" "}
                                         {new Date(
-                                          milestone.due_date
+                                          milestone.due_date,
                                         ).toLocaleDateString()}
                                       </span>
                                     )}
@@ -4285,7 +4324,7 @@ function ProjectManager({
                                   size="sm"
                                   onClick={() => {
                                     setSelectedMilestoneId(
-                                      milestone.id || milestone.tempId
+                                      milestone.id || milestone.tempId,
                                     );
                                     setEditingTaskId(null);
                                     setTaskDialogOpen(true);
@@ -4314,19 +4353,19 @@ function ProjectManager({
                                                 task.status === "done"
                                                   ? "default"
                                                   : task.status ===
-                                                    "in-progress"
-                                                  ? "secondary"
-                                                  : "outline"
+                                                      "in-progress"
+                                                    ? "secondary"
+                                                    : "outline"
                                               }
                                               className="text-xs"
                                             >
                                               {task.status === "todo"
                                                 ? "Todo"
                                                 : task.status === "in-progress"
-                                                ? "In Progress"
-                                                : task.status === "done"
-                                                ? "Done"
-                                                : "Blocked"}
+                                                  ? "In Progress"
+                                                  : task.status === "done"
+                                                    ? "Done"
+                                                    : "Blocked"}
                                             </Badge>
                                             <Badge
                                               variant="outline"
@@ -4345,7 +4384,7 @@ function ProjectManager({
                                               <span>
                                                 Due:{" "}
                                                 {new Date(
-                                                  task.due_date
+                                                  task.due_date,
                                                 ).toLocaleDateString()}
                                               </span>
                                             )}
@@ -4368,10 +4407,11 @@ function ProjectManager({
                                             size="sm"
                                             onClick={() => {
                                               setSelectedMilestoneId(
-                                                milestone.id || milestone.tempId
+                                                milestone.id ||
+                                                  milestone.tempId,
                                               );
                                               setEditingTaskId(
-                                                task.id || task.tempId
+                                                task.id || task.tempId,
                                               );
                                               setTaskDialogOpen(true);
                                             }}
@@ -4385,7 +4425,7 @@ function ProjectManager({
                                             onClick={async () => {
                                               if (
                                                 confirm(
-                                                  "Are you sure you want to delete this task?"
+                                                  "Are you sure you want to delete this task?",
                                                 )
                                               ) {
                                                 // If creating new project, remove from tempMilestones
@@ -4403,11 +4443,11 @@ function ProjectManager({
                                                                   (t.tempId ||
                                                                     t.id) !==
                                                                   (task.tempId ||
-                                                                    task.id)
+                                                                    task.id),
                                                               ),
                                                           }
-                                                        : m
-                                                    )
+                                                        : m,
+                                                    ),
                                                   );
                                                   toast({
                                                     title:
@@ -4419,7 +4459,7 @@ function ProjectManager({
                                                 try {
                                                   const response = await fetch(
                                                     `/api/tasks/${task.id}`,
-                                                    { method: "DELETE" }
+                                                    { method: "DELETE" },
                                                   );
                                                   if (response.ok) {
                                                     mutateMilestones();
@@ -4460,7 +4500,7 @@ function ProjectManager({
                                   size="sm"
                                   onClick={() => {
                                     setEditingMilestoneId(
-                                      milestone.id || milestone.tempId
+                                      milestone.id || milestone.tempId,
                                     );
                                     setMilestoneDialogOpen(true);
                                   }}
@@ -4479,7 +4519,7 @@ function ProjectManager({
                                     ) {
                                       if (
                                         !confirm(
-                                          `This milestone contains ${milestone.tasks.length} task(s). Are you sure you want to delete it? Tasks will be unlinked from this milestone.`
+                                          `This milestone contains ${milestone.tasks.length} task(s). Are you sure you want to delete it? Tasks will be unlinked from this milestone.`,
                                         )
                                       ) {
                                         return;
@@ -4491,8 +4531,8 @@ function ProjectManager({
                                         prev.filter(
                                           (m) =>
                                             (m.tempId || m.id) !==
-                                            (milestone.tempId || milestone.id)
-                                        )
+                                            (milestone.tempId || milestone.id),
+                                        ),
                                       );
                                       toast({
                                         title: "Milestone deleted successfully",
@@ -4503,7 +4543,7 @@ function ProjectManager({
                                     try {
                                       const response = await fetch(
                                         `/api/milestones/${milestone.id}`,
-                                        { method: "DELETE" }
+                                        { method: "DELETE" },
                                       );
                                       if (response.ok) {
                                         mutateMilestones();
@@ -4718,7 +4758,7 @@ function ProjectManager({
                 {filteredProjects.length > 0
                   ? (totalRevenue / filteredProjects.length).toLocaleString(
                       undefined,
-                      { maximumFractionDigits: 0 }
+                      { maximumFractionDigits: 0 },
                     )
                   : "0"}
               </div>
@@ -4740,7 +4780,10 @@ function ProjectManager({
                   id="project-search"
                   value={projectFilters.search}
                   onChange={(e) =>
-                    setProjectFilters({ ...projectFilters, search: e.target.value })
+                    setProjectFilters({
+                      ...projectFilters,
+                      search: e.target.value,
+                    })
                   }
                   placeholder="Name / client / description"
                 />
@@ -5275,7 +5318,12 @@ function RiskManager({ toast }: { toast: any }) {
   const [riskFilters, setRiskFilters] = useState({
     search: "",
     severity: "all" as "all" | "low" | "medium" | "high" | "critical",
-    status: "all" as "all" | "identified" | "mitigating" | "resolved" | "accepted",
+    status: "all" as
+      | "all"
+      | "identified"
+      | "mitigating"
+      | "resolved"
+      | "accepted",
     project_id: "all" as "all" | "none" | string,
   });
   const [formData, setFormData] = useState({
@@ -5301,7 +5349,7 @@ function RiskManager({ toast }: { toast: any }) {
   // Calculate risk score and level
   const calculateRiskScore = (
     severity: string,
-    probability: string
+    probability: string,
   ): number => {
     const severityValues: Record<string, number> = {
       low: 1,
@@ -5477,7 +5525,7 @@ function RiskManager({ toast }: { toast: any }) {
   const criticalRisks = filteredRisks.filter((r) => r.severity === "critical");
   const highRisks = filteredRisks.filter((r) => r.severity === "high");
   const activeRisks = filteredRisks.filter(
-    (r) => r.status === "identified" || r.status === "mitigating"
+    (r) => r.status === "identified" || r.status === "mitigating",
   );
   const resolvedRisks = filteredRisks.filter((r) => r.status === "resolved");
 
@@ -5541,14 +5589,17 @@ function RiskManager({ toast }: { toast: any }) {
   };
 
   // Group risks by category
-  const risksByCategory = filteredRisks.reduce((acc, risk) => {
-    const category = risk.category || "Other";
-    if (!acc[category]) {
-      acc[category] = [];
-    }
-    acc[category].push(risk);
-    return acc;
-  }, {} as Record<string, typeof risks>);
+  const risksByCategory = filteredRisks.reduce(
+    (acc, risk) => {
+      const category = risk.category || "Other";
+      if (!acc[category]) {
+        acc[category] = [];
+      }
+      acc[category].push(risk);
+      return acc;
+    },
+    {} as Record<string, typeof risks>,
+  );
 
   // Show full-page form when creating/editing
   if (open) {
@@ -5788,8 +5839,8 @@ function RiskManager({ toast }: { toast: any }) {
                         riskLevel === "High"
                           ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 text-lg px-3 py-1"
                           : riskLevel === "Medium"
-                          ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 text-lg px-3 py-1"
-                          : "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 text-lg px-3 py-1"
+                            ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 text-lg px-3 py-1"
+                            : "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 text-lg px-3 py-1"
                       }
                     >
                       {riskLevel}
@@ -6152,9 +6203,7 @@ function RiskManager({ toast }: { toast: any }) {
             <AlertTriangle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {filteredRisks.length}
-            </div>
+            <div className="text-2xl font-bold">{filteredRisks.length}</div>
             <p className="text-xs text-muted-foreground">
               {activeRisks.length} active
             </p>
@@ -6268,7 +6317,7 @@ function RiskManager({ toast }: { toast: any }) {
                                   </span>
                                   <span
                                     className={`font-medium ${getProbabilityColor(
-                                      risk.probability
+                                      risk.probability,
                                     )}`}
                                   >
                                     {risk.probability}
@@ -6672,7 +6721,7 @@ function DeveloperManager({ toast }: { toast: any }) {
                         <Select
                           value={formData.user_role}
                           onValueChange={(
-                            value: "admin" | "developer" | "general"
+                            value: "admin" | "developer" | "general",
                           ) => setFormData({ ...formData, user_role: value })}
                         >
                           <SelectTrigger>
@@ -6809,6 +6858,10 @@ function DeveloperManager({ toast }: { toast: any }) {
 
 function UserManager({ toast }: { toast: any }) {
   const { data: users, error, mutate } = useSWR<User[]>("/api/users", fetcher);
+  const {
+    data: developers,
+    mutate: mutateDevelopers,
+  } = useSWR<Developer[]>("/api/developers", fetcher);
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
@@ -6816,12 +6869,15 @@ function UserManager({ toast }: { toast: any }) {
     password: "",
     name: "",
     role: "general" as "admin" | "developer" | "general",
+    phone: "",
+    hourly_rate: "",
+    developer_status: "active" as "active" | "inactive",
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const data: any = {
+      const userData: any = {
         email: formData.email,
         name: formData.name,
         role: formData.role,
@@ -6829,7 +6885,7 @@ function UserManager({ toast }: { toast: any }) {
 
       // Only include password if it's provided (for updates) or if creating new user
       if (formData.password) {
-        data.password = formData.password;
+        userData.password = formData.password;
       }
 
       const url = editingId
@@ -6850,12 +6906,77 @@ function UserManager({ toast }: { toast: any }) {
       const response = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify(userData),
       });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || "Failed to save");
+      }
+
+      // Sync linked Developer profile for task assignment (matched by email).
+      if (formData.role !== "admin") {
+        const emailLower = formData.email.toLowerCase();
+        const linkedDeveloper = developers?.find(
+          (d) => d.email && d.email.toLowerCase() === emailLower
+        );
+
+        const developerPayload = {
+          name: formData.name,
+          role: formData.role,
+          email: emailLower,
+          phone: formData.phone || null,
+          hourly_rate: formData.hourly_rate
+            ? Number.parseFloat(formData.hourly_rate)
+            : null,
+          status: formData.developer_status,
+          create_user_account: false,
+        };
+
+        try {
+          if (linkedDeveloper?.id) {
+            const devRes = await fetch(
+              `/api/developers/${linkedDeveloper.id}`,
+              {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(developerPayload),
+              }
+            );
+            if (!devRes.ok) {
+              const errorData = await devRes
+                .json()
+                .catch(() => ({}));
+              throw new Error(
+                errorData.error || "Failed to update developer"
+              );
+            }
+          } else {
+            const devRes = await fetch(`/api/developers`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(developerPayload),
+            });
+            if (!devRes.ok) {
+              const errorData = await devRes
+                .json()
+                .catch(() => ({}));
+              throw new Error(
+                errorData.error || "Failed to create developer"
+              );
+            }
+          }
+
+          await mutateDevelopers();
+        } catch (devError: any) {
+          toast({
+            title: "Warning",
+            description:
+              devError?.message ||
+              "User saved, but Developer profile could not be synced.",
+            variant: "destructive",
+          });
+        }
       }
 
       toast({
@@ -6869,6 +6990,9 @@ function UserManager({ toast }: { toast: any }) {
         password: "",
         name: "",
         role: "general",
+        phone: "",
+        hourly_rate: "",
+        developer_status: "active",
       });
     } catch (error: any) {
       toast({
@@ -6881,11 +7005,19 @@ function UserManager({ toast }: { toast: any }) {
 
   const handleEdit = (user: User) => {
     setEditingId(user.id);
+    const linkedDeveloper = developers?.find(
+      (d) => d.email && d.email.toLowerCase() === user.email.toLowerCase()
+    );
     setFormData({
       email: user.email,
       password: "", // Don't pre-fill password
       name: user.name,
       role: user.role,
+      phone: linkedDeveloper?.phone || "",
+      hourly_rate: linkedDeveloper?.hourly_rate
+        ? linkedDeveloper.hourly_rate.toString()
+        : "",
+      developer_status: linkedDeveloper?.status || "active",
     });
     setOpen(true);
   };
@@ -6916,7 +7048,7 @@ function UserManager({ toast }: { toast: any }) {
   };
 
   if (error) return <div>Error loading users</div>;
-  if (!users) return <div>Loading...</div>;
+  if (!users || !developers) return <div>Loading...</div>;
 
   return (
     <div className="space-y-4">
@@ -6935,6 +7067,9 @@ function UserManager({ toast }: { toast: any }) {
               password: "",
               name: "",
               role: "general",
+              phone: "",
+              hourly_rate: "",
+              developer_status: "active",
             });
             setOpen(true);
           }}
@@ -6967,6 +7102,7 @@ function UserManager({ toast }: { toast: any }) {
                   }
                   required
                   placeholder="user@example.com"
+                  disabled={!!editingId}
                 />
               </div>
               <div className="space-y-2">
@@ -7016,6 +7152,66 @@ function UserManager({ toast }: { toast: any }) {
               </div>
             </div>
 
+            {formData.role !== "admin" && (
+              <div className="border-t pt-4 space-y-4">
+                <div className="text-sm font-medium text-muted-foreground">
+                  Developer Profile Fields
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Phone</Label>
+                    <Input
+                      id="phone"
+                      value={formData.phone}
+                      onChange={(e) =>
+                        setFormData({ ...formData, phone: e.target.value })
+                      }
+                      placeholder="+60 12-345 6789"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="hourly_rate">Hourly Rate (RM)</Label>
+                    <Input
+                      id="hourly_rate"
+                      type="number"
+                      step="0.01"
+                      value={formData.hourly_rate}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          hourly_rate: e.target.value,
+                        })
+                      }
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="developer_status">Status</Label>
+                    <Select
+                      value={formData.developer_status}
+                      onValueChange={(value: "active" | "inactive") =>
+                        setFormData({
+                          ...formData,
+                          developer_status: value,
+                        })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="inactive">Inactive</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Tasks assign using <span className="font-medium">Developer</span> profile matched by email.
+                </p>
+              </div>
+            )}
+
             <div className="flex gap-3 pt-4">
               <Button
                 type="button"
@@ -7029,6 +7225,9 @@ function UserManager({ toast }: { toast: any }) {
                     password: "",
                     name: "",
                     role: "general",
+                    phone: "",
+                    hourly_rate: "",
+                    developer_status: "active",
                   });
                 }}
               >
@@ -7058,8 +7257,8 @@ function UserManager({ toast }: { toast: any }) {
                     user.role === "admin"
                       ? "default"
                       : user.role === "developer"
-                      ? "secondary"
-                      : "outline"
+                        ? "secondary"
+                        : "outline"
                   }
                 >
                   {user.role}
@@ -7081,6 +7280,39 @@ function UserManager({ toast }: { toast: any }) {
               </div>
             </CardHeader>
             <CardContent>
+              {(() => {
+                const dev = developers?.find(
+                  (d) => d.email && d.email.toLowerCase() === user.email.toLowerCase()
+                );
+                if (!dev) {
+                  return (
+                    <div className="text-xs text-muted-foreground">
+                      No Developer profile linked
+                    </div>
+                  );
+                }
+                return (
+                  <div className="text-xs text-muted-foreground space-y-1 mb-2">
+                    <div>
+                      Developer Status:{" "}
+                      <span className="font-medium">{dev.status}</span>
+                    </div>
+                    {dev.phone && (
+                      <div>
+                        Phone: <span className="font-medium">{dev.phone}</span>
+                      </div>
+                    )}
+                    {dev.hourly_rate != null && (
+                      <div>
+                        Hourly:{" "}
+                        <span className="font-medium">
+                          RM {dev.hourly_rate.toFixed(2)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
               <div className="text-sm text-muted-foreground">
                 Created: {new Date(user.created_at).toLocaleDateString()}
               </div>
@@ -7154,17 +7386,20 @@ function TaskManager({ toast }: { toast: any }) {
     }) || [];
 
   // Group filtered tasks by developer
-  const tasksByDeveloper = filteredTasks.reduce((acc, task) => {
-    const devId = task.developer_id;
-    if (!acc[devId]) {
-      acc[devId] = {
-        developer: task.developer || null,
-        tasks: [],
-      };
-    }
-    acc[devId].tasks.push(task);
-    return acc;
-  }, {} as Record<string, { developer: Developer | null; tasks: Task[] }>);
+  const tasksByDeveloper = filteredTasks.reduce(
+    (acc, task) => {
+      const devId = task.developer_id;
+      if (!acc[devId]) {
+        acc[devId] = {
+          developer: task.developer || null,
+          tasks: [],
+        };
+      }
+      acc[devId].tasks.push(task);
+      return acc;
+    },
+    {} as Record<string, { developer: Developer | null; tasks: Task[] }>,
+  );
 
   const developerGroups = tasksByDeveloper
     ? Object.values(tasksByDeveloper).sort((a, b) => {
@@ -7190,7 +7425,7 @@ function TaskManager({ toast }: { toast: any }) {
         d.status === "active" ||
         (d.email != null &&
           d.email !== "" &&
-          generalUserEmails.has(d.email.toLowerCase()))
+          generalUserEmails.has(d.email.toLowerCase())),
     );
     const selId = formData.developer_id;
     if (!selId || base.some((d) => d.id === selId)) return base;
@@ -7684,10 +7919,10 @@ function TaskManager({ toast }: { toast: any }) {
                               {task.status === "todo"
                                 ? "Todo"
                                 : task.status === "in-progress"
-                                ? "In Progress"
-                                : task.status === "done"
-                                ? "Done"
-                                : "Blocked"}
+                                  ? "In Progress"
+                                  : task.status === "done"
+                                    ? "Done"
+                                    : "Blocked"}
                             </Badge>
                             <Badge className={getPriorityColor(task.priority)}>
                               {task.priority}
@@ -7759,7 +7994,7 @@ function TaskManager({ toast }: { toast: any }) {
                               ? `${Math.min(
                                   (task.actual_hours / task.estimated_hours) *
                                     100,
-                                  100
+                                  100,
                                 ).toFixed(0)}%`
                               : "N/A"}
                           </div>

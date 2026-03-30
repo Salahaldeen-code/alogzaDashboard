@@ -30,12 +30,14 @@ export async function POST(request: NextRequest) {
 
     const hashedPassword = await hashPassword(password);
 
+    const finalRole = role || "general";
+
     const user = await prisma.user.create({
       data: {
         email: email.toLowerCase(),
         password: hashedPassword,
         name,
-        role: role || "general",
+        role: finalRole,
       },
       select: {
         id: true,
@@ -44,6 +46,30 @@ export async function POST(request: NextRequest) {
         role: true,
       },
     });
+
+    // Ensure "general" users (and "developer" users) have a matching Developer profile,
+    // so they can sign in and view tasks on the main dashboard.
+    if (
+      (finalRole === "general" || finalRole === "developer") &&
+      user.email
+    ) {
+      const existingDeveloper = await prisma.developer.findFirst({
+        where: {
+          email: user.email.toLowerCase(),
+        },
+      });
+
+      if (!existingDeveloper) {
+        await prisma.developer.create({
+          data: {
+            name: user.name,
+            role: finalRole,
+            email: user.email.toLowerCase(),
+            status: "active",
+          },
+        });
+      }
+    }
 
     return NextResponse.json(
       {

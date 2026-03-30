@@ -97,6 +97,29 @@ export async function PUT(
       },
     });
 
+    // Keep Developer profile in sync for role="general" and role="developer"
+    // so those users can sign in and view their dashboard tasks.
+    if (
+      (updatedUser.role === "general" || updatedUser.role === "developer") &&
+      updatedUser.email
+    ) {
+      const emailLower = updatedUser.email.toLowerCase();
+      const existingDeveloper = await prisma.developer.findFirst({
+        where: { email: emailLower },
+      });
+
+      if (!existingDeveloper) {
+        await prisma.developer.create({
+          data: {
+            name: updatedUser.name,
+            role: updatedUser.role,
+            email: emailLower,
+            status: "active",
+          },
+        });
+      }
+    }
+
     const formatted = {
       id: updatedUser.id,
       email: updatedUser.email,

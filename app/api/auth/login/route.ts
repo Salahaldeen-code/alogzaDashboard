@@ -41,6 +41,26 @@ export async function POST(request: NextRequest) {
       role: user.role as "admin" | "developer" | "general",
     };
 
+    // Fallback: make sure role="general" (and "developer") users have a Developer profile.
+    // This allows them to sign in and see their tasks dashboard.
+    if ((user.role === "general" || user.role === "developer") && user.email) {
+      const emailLower = user.email.toLowerCase();
+      const existingDeveloper = await prisma.developer.findFirst({
+        where: { email: emailLower },
+      });
+
+      if (!existingDeveloper) {
+        await prisma.developer.create({
+          data: {
+            name: user.name,
+            role: user.role,
+            email: emailLower,
+            status: "active",
+          },
+        });
+      }
+    }
+
     await createSession(user.id, sessionUser);
 
     return NextResponse.json({
