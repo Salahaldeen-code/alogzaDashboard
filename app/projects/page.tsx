@@ -21,9 +21,13 @@ export default async function ProjectsPage() {
   }
 
   // If user is admin, show all projects
-  type ProjectWithClient = Awaited<ReturnType<typeof prisma.project.findMany<{
-    include: { client: { select: { id: true; name: true } } }
-  }>>>;
+  type ProjectWithClient = Awaited<
+    ReturnType<
+      typeof prisma.project.findMany<{
+        include: { client: { select: { id: true; name: true } } };
+      }>
+    >
+  >;
   let projects: ProjectWithClient;
   if (session.role === "admin") {
     projects = await prisma.project.findMany({
@@ -126,7 +130,7 @@ export default async function ProjectsPage() {
 
   const activeProjects = projectsData.filter((p) => p.status === "in-progress");
   const completedProjects = projectsData.filter(
-    (p) => p.status === "completed"
+    (p) => p.status === "completed",
   );
 
   const getStatusColor = (status: string) => {

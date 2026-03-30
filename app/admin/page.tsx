@@ -1153,6 +1153,12 @@ function ClientManager({ toast }: { toast: any }) {
   const { data: clients, error } = useSWR<Client[]>("/api/clients", fetcher);
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+
+  const [clientFilters, setClientFilters] = useState({
+    search: "",
+    status: "all" as "all" | "active" | "inactive" | "prospective",
+  });
+
   const [formData, setFormData] = useState({
     name: "",
     industry: "",
@@ -1247,6 +1253,19 @@ function ClientManager({ toast }: { toast: any }) {
   if (error)
     return <div className="text-destructive">Failed to load clients</div>;
   if (!clients) return <div>Loading...</div>;
+
+  const filteredClients = clients.filter((c) => {
+    if (clientFilters.status !== "all" && c.status !== clientFilters.status)
+      return false;
+    if (clientFilters.search) {
+      const q = clientFilters.search.toLowerCase();
+      const haystack = [c.name, c.industry ?? "", c.email ?? "", c.contact_person ?? ""]
+        .join(" ")
+        .toLowerCase();
+      if (!haystack.includes(q)) return false;
+    }
+    return true;
+  });
 
   return (
     <div className="space-y-4">
@@ -1461,8 +1480,62 @@ function ClientManager({ toast }: { toast: any }) {
         </DialogContent>
       </Dialog>
 
+      <div className="border rounded-md p-4 space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="client-search">Search</Label>
+            <Input
+              id="client-search"
+              value={clientFilters.search}
+              onChange={(e) =>
+                setClientFilters({ ...clientFilters, search: e.target.value })
+              }
+              placeholder="Name / industry / email / contact"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="client-status">Status</Label>
+            <Select
+              value={clientFilters.status}
+              onValueChange={(value) =>
+                setClientFilters({
+                  ...clientFilters,
+                  status: value as any,
+                })
+              }
+            >
+              <SelectTrigger id="client-status">
+                <SelectValue placeholder="All statuses" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
+                <SelectItem value="prospective">Prospective</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-end justify-start md:justify-end">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                setClientFilters({ search: "", status: "all" })
+              }
+            >
+              Clear Filters
+            </Button>
+          </div>
+        </div>
+      </div>
+
       <div className="grid gap-4">
-        {clients.map((client) => (
+        {filteredClients.length === 0 ? (
+          <div className="text-sm text-muted-foreground">
+            No clients match your filters.
+          </div>
+        ) : (
+          filteredClients.map((client) => (
           <Card key={client.id}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <div>
@@ -1503,7 +1576,8 @@ function ClientManager({ toast }: { toast: any }) {
               </div>
             </CardContent>
           </Card>
-        ))}
+          ))
+        )}
       </div>
     </div>
   );
@@ -1546,6 +1620,22 @@ function ProjectManager({
   );
   // Temporary milestones for new project creation
   const [tempMilestones, setTempMilestones] = useState<any[]>([]);
+
+  // Projects filtering (Projects tab)
+  const [projectFilters, setProjectFilters] = useState({
+    search: "",
+    status: "all" as
+      | "all"
+      | "prospective"
+      | "potential"
+      | "pending"
+      | "planning"
+      | "in-progress"
+      | "completed"
+      | "on-hold"
+      | "cancelled",
+    client_id: "all" as "all" | string,
+  });
 
   // Use the year from Revenue Targets section (admin panel header)
   const selectedYear = yearFromRevenue || currentYear;
@@ -2068,22 +2158,43 @@ function ProjectManager({
     };
   });
 
-  // Calculate summary metrics
-  const activeProjects = projectsWithClients.filter(
+  const filteredProjects = projectsWithClients.filter((p) => {
+    if (projectFilters.status !== "all" && p.status !== projectFilters.status)
+      return false;
+    if (projectFilters.client_id !== "all" && p.client_id !== projectFilters.client_id)
+      return false;
+
+    if (projectFilters.search) {
+      const q = projectFilters.search.toLowerCase();
+      const haystack = [
+        p.name,
+        p.clientName,
+        p.description ?? "",
+      ]
+        .join(" ")
+        .toLowerCase();
+      if (!haystack.includes(q)) return false;
+    }
+
+    return true;
+  });
+
+  // Calculate summary metrics (respect filters)
+  const activeProjects = filteredProjects.filter(
     (p) => p.status === "in-progress"
   );
-  const completedProjects = projectsWithClients.filter(
+  const completedProjects = filteredProjects.filter(
     (p) => p.status === "completed"
   );
-  const totalBudget = projectsWithClients.reduce(
+  const totalBudget = filteredProjects.reduce(
     (sum, p) => sum + (p.budget || 0),
     0
   );
-  const totalRevenue = projectsWithClients.reduce(
+  const totalRevenue = filteredProjects.reduce(
     (sum, p) => sum + p.revenue,
     0
   );
-  const totalCost = projectsWithClients.reduce(
+  const totalCost = filteredProjects.reduce(
     (sum, p) => sum + p.actual_cost,
     0
   );
@@ -4553,7 +4664,7 @@ function ProjectManager({
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {projectsWithClients.length}
+                {filteredProjects.length}
               </div>
               <p className="text-xs text-muted-foreground">
                 {activeProjects.length} active, {completedProjects.length}{" "}
@@ -4604,8 +4715,8 @@ function ProjectManager({
             <CardContent>
               <div className="text-2xl font-bold">
                 RM{" "}
-                {projectsWithClients.length > 0
-                  ? (totalRevenue / projectsWithClients.length).toLocaleString(
+                {filteredProjects.length > 0
+                  ? (totalRevenue / filteredProjects.length).toLocaleString(
                       undefined,
                       { maximumFractionDigits: 0 }
                     )
@@ -4622,10 +4733,89 @@ function ProjectManager({
             <CardDescription>
               Detailed view of all projects and their progress
             </CardDescription>
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="project-search">Search</Label>
+                <Input
+                  id="project-search"
+                  value={projectFilters.search}
+                  onChange={(e) =>
+                    setProjectFilters({ ...projectFilters, search: e.target.value })
+                  }
+                  placeholder="Name / client / description"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="project-status">Status</Label>
+                <Select
+                  value={projectFilters.status}
+                  onValueChange={(value) =>
+                    setProjectFilters({
+                      ...projectFilters,
+                      status: value as any,
+                    })
+                  }
+                >
+                  <SelectTrigger id="project-status">
+                    <SelectValue placeholder="All statuses" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Statuses</SelectItem>
+                    <SelectItem value="prospective">Prospective</SelectItem>
+                    <SelectItem value="potential">Potential</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="planning">Planning</SelectItem>
+                    <SelectItem value="in-progress">In Progress</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="on-hold">On Hold</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="project-client">Client</Label>
+                <Select
+                  value={projectFilters.client_id}
+                  onValueChange={(value) =>
+                    setProjectFilters({
+                      ...projectFilters,
+                      client_id: value,
+                    })
+                  }
+                >
+                  <SelectTrigger id="project-client">
+                    <SelectValue placeholder="All clients" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Clients</SelectItem>
+                    {clients?.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="md:col-span-3 flex items-center justify-end">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setProjectFilters({
+                      search: "",
+                      status: "all",
+                      client_id: "all",
+                    })
+                  }
+                >
+                  Clear Filters
+                </Button>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {projectsWithClients.map((project) => {
+              {filteredProjects.map((project) => {
                 const budgetUsed = project.budget
                   ? (project.actual_cost / project.budget) * 100
                   : 0;
@@ -5081,6 +5271,13 @@ function RiskManager({ toast }: { toast: any }) {
   const { data: projects } = useSWR<Project[]>("/api/projects", fetcher);
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+
+  const [riskFilters, setRiskFilters] = useState({
+    search: "",
+    severity: "all" as "all" | "low" | "medium" | "high" | "critical",
+    status: "all" as "all" | "identified" | "mitigating" | "resolved" | "accepted",
+    project_id: "all" as "all" | "none" | string,
+  });
   const [formData, setFormData] = useState({
     project_id: "",
     title: "",
@@ -5241,13 +5438,48 @@ function RiskManager({ toast }: { toast: any }) {
     return <div className="text-destructive">Failed to load risks</div>;
   if (!risks) return <div>Loading...</div>;
 
+  const filteredRisks = risks.filter((r) => {
+    if (riskFilters.severity !== "all" && r.severity !== riskFilters.severity)
+      return false;
+    if (riskFilters.status !== "all" && r.status !== riskFilters.status)
+      return false;
+
+    const projectId = (r as any).project_id as string | null | undefined;
+    if (riskFilters.project_id !== "all") {
+      if (riskFilters.project_id === "none") {
+        if (projectId) return false;
+      } else {
+        if (!projectId || projectId !== riskFilters.project_id) return false;
+      }
+    }
+
+    if (riskFilters.search) {
+      const q = riskFilters.search.toLowerCase();
+      const haystack = [
+        r.title,
+        r.description ?? "",
+        r.category ?? "",
+        r.owner ?? "",
+        (r as any).impact ?? "",
+        (r as any).mitigation_plan ?? "",
+        (r as any).project?.name ?? "",
+        (r as any).project?.client?.name ?? "",
+      ]
+        .join(" ")
+        .toLowerCase();
+      if (!haystack.includes(q)) return false;
+    }
+
+    return true;
+  });
+
   // Calculate risk metrics
-  const criticalRisks = risks.filter((r) => r.severity === "critical");
-  const highRisks = risks.filter((r) => r.severity === "high");
-  const activeRisks = risks.filter(
+  const criticalRisks = filteredRisks.filter((r) => r.severity === "critical");
+  const highRisks = filteredRisks.filter((r) => r.severity === "high");
+  const activeRisks = filteredRisks.filter(
     (r) => r.status === "identified" || r.status === "mitigating"
   );
-  const resolvedRisks = risks.filter((r) => r.status === "resolved");
+  const resolvedRisks = filteredRisks.filter((r) => r.status === "resolved");
 
   // Helper functions for styling
   const getSeverityColor = (severity: string) => {
@@ -5309,7 +5541,7 @@ function RiskManager({ toast }: { toast: any }) {
   };
 
   // Group risks by category
-  const risksByCategory = risks.reduce((acc, risk) => {
+  const risksByCategory = filteredRisks.reduce((acc, risk) => {
     const category = risk.category || "Other";
     if (!acc[category]) {
       acc[category] = [];
@@ -5769,6 +6001,117 @@ function RiskManager({ toast }: { toast: any }) {
         </Button>
       </div>
 
+      {/* Risk Filters */}
+      <div className="border rounded-md p-4 space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="risk-search">Search</Label>
+            <Input
+              id="risk-search"
+              value={riskFilters.search}
+              onChange={(e) =>
+                setRiskFilters({ ...riskFilters, search: e.target.value })
+              }
+              placeholder="Title / owner / project / impact"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="risk-severity">Severity</Label>
+            <Select
+              value={riskFilters.severity}
+              onValueChange={(value) =>
+                setRiskFilters({
+                  ...riskFilters,
+                  severity: value as any,
+                })
+              }
+            >
+              <SelectTrigger id="risk-severity" className="h-10">
+                <SelectValue placeholder="All severities" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Severities</SelectItem>
+                <SelectItem value="low">Low</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="high">High</SelectItem>
+                <SelectItem value="critical">Critical</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="risk-status">Status</Label>
+            <Select
+              value={riskFilters.status}
+              onValueChange={(value) =>
+                setRiskFilters({
+                  ...riskFilters,
+                  status: value as any,
+                })
+              }
+            >
+              <SelectTrigger id="risk-status" className="h-10">
+                <SelectValue placeholder="All statuses" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="identified">Identified</SelectItem>
+                <SelectItem value="mitigating">Mitigating</SelectItem>
+                <SelectItem value="resolved">Resolved</SelectItem>
+                <SelectItem value="accepted">Accepted</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="risk-project">Project</Label>
+            <Select
+              value={riskFilters.project_id}
+              onValueChange={(value) =>
+                setRiskFilters({
+                  ...riskFilters,
+                  project_id: value,
+                })
+              }
+            >
+              <SelectTrigger id="risk-project" className="h-10">
+                <SelectValue placeholder="All projects" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Projects</SelectItem>
+                <SelectItem value="none">General Risk (No Project)</SelectItem>
+                {projects?.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              setRiskFilters({
+                search: "",
+                severity: "all",
+                status: "all",
+                project_id: "all",
+              })
+            }
+          >
+            Clear Filters
+          </Button>
+        </div>
+      </div>
+
+      {filteredRisks.length === 0 && (
+        <div className="text-sm text-muted-foreground">
+          No risks match your filters.
+        </div>
+      )}
+
       {/* Critical Risks Alert */}
       {criticalRisks.length > 0 && (
         <Card className="border-destructive">
@@ -5809,7 +6152,9 @@ function RiskManager({ toast }: { toast: any }) {
             <AlertTriangle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{risks.length}</div>
+            <div className="text-2xl font-bold">
+              {filteredRisks.length}
+            </div>
             <p className="text-xs text-muted-foreground">
               {activeRisks.length} active
             </p>
