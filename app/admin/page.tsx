@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import type React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import useSWR, { mutate } from "swr";
@@ -1516,21 +1516,28 @@ function ProjectManager({
   // Use the year from Revenue Targets section (admin panel header)
   const selectedYear = yearFromRevenue || currentYear;
 
-  // Update form data years when yearFromRevenue changes (header year selector)
-  // When editing a project, do NOT clear start/end month and dates — they come from the project
+  // When opening from month page (editProjectId), we must not clear start/end month — handleEdit will set them.
+  const skipNextYearEffectClear = useRef(false);
+
+  // Update form data years when yearFromRevenue changes
   useEffect(() => {
-    if (yearFromRevenue && !editingId) {
-      setFormData((prev) => ({
-        ...prev,
-        start_year: yearFromRevenue.toString(),
-        end_year: yearFromRevenue.toString(),
-        start_month: "",
-        end_month: "",
-        start_date: "",
-        end_date: "",
-      }));
+    if (!yearFromRevenue) return;
+    // Do not clear start/end month when we just loaded a project from the month page (editProjectId)
+    if (skipNextYearEffectClear.current) {
+      skipNextYearEffectClear.current = false;
+      return;
     }
-  }, [yearFromRevenue, editingId]);
+    // Update form data years to match the header year and clear months when user changes year
+    setFormData((prev) => ({
+      ...prev,
+      start_year: yearFromRevenue.toString(),
+      end_year: yearFromRevenue.toString(),
+      start_month: "",
+      end_month: "",
+      start_date: "",
+      end_date: "",
+    }));
+  }, [yearFromRevenue]);
 
   // Check for project ID from sessionStorage (from month page)
   // This useEffect needs to be after handleEdit is defined, so we'll move it later
@@ -1899,6 +1906,14 @@ function ProjectManager({
       });
     }
 
+    // Normalize dates to YYYY-MM-DD for DatePicker (handles ISO strings from API)
+    const startDateStr = project.start_date
+      ? String(project.start_date).slice(0, 10)
+      : "";
+    const endDateStr = project.end_date
+      ? String(project.end_date).slice(0, 10)
+      : "";
+
     const newFormData = {
       client_id: project.client_id,
       name: project.name,
@@ -1908,8 +1923,8 @@ function ProjectManager({
       start_year: startYear || projectYear.toString(),
       end_month: endMonth,
       end_year: endYear || projectYear.toString(),
-      start_date: project.start_date || "",
-      end_date: project.end_date || "",
+      start_date: startDateStr,
+      end_date: endDateStr,
       budget: project.budget?.toString() || "",
       actual_cost: project.actual_cost.toString(),
       revenue: project.revenue.toString(),
@@ -1966,12 +1981,29 @@ function ProjectManager({
     if (editProjectId && projects) {
       const project = projects.find((p) => p.id === editProjectId);
       if (project) {
+        skipNextYearEffectClear.current = true; // so yearFromRevenue effect won't clear start/end month
         handleEdit(project);
         sessionStorage.removeItem("editProjectId");
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projects]);
+
+  // Re-apply Specific Start Date and End Date from project when editing if they were cleared
+  // (e.g. by effect ordering when opening from month page)
+  useEffect(() => {
+    if (!editingId || !open || !projects) return;
+    const project = projects.find((p) => p.id === editingId);
+    if (!project) return;
+    const needStart = (project.start_date && (!formData.start_date || formData.start_date === ""));
+    const needEnd = (project.end_date && (!formData.end_date || formData.end_date === ""));
+    if (!needStart && !needEnd) return;
+    setFormData((prev) => ({
+      ...prev,
+      ...(needStart && { start_date: String(project.start_date!).slice(0, 10) }),
+      ...(needEnd && { end_date: String(project.end_date!).slice(0, 10) }),
+    }));
+  }, [editingId, open, projects, formData.start_date, formData.end_date]);
 
   const handleDelete = async (id: string) => {
     if (!confirm("Are you sure you want to delete this project?")) return;

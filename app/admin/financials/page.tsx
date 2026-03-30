@@ -53,12 +53,21 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { ChartContainer, ChartTooltip } from "@/components/ui/chart";
-import type { Project, Expense, ProjectDeveloper } from "@/lib/types";
+import type { Project, Expense, ProjectDeveloper, Client } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 type PeriodType = "month" | "quarter" | "ytd" | "custom";
+
+type FinancialDetailKind = "income" | "expenses" | "netprofit" | "receivables";
+
+function formatRm(n: number) {
+  return `RM${n.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
 
 export default function FinancialsPage() {
   const router = useRouter();
@@ -74,6 +83,8 @@ export default function FinancialsPage() {
   const [customStartDate, setCustomStartDate] = useState<string>("");
   const [customEndDate, setCustomEndDate] = useState<string>("");
   const [expenseDialogOpen, setExpenseDialogOpen] = useState(false);
+  const [financialDetail, setFinancialDetail] =
+    useState<FinancialDetailKind | null>(null);
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
   const [expenseFormData, setExpenseFormData] = useState({
     project_id: "none",
@@ -89,6 +100,7 @@ export default function FinancialsPage() {
     "/api/projects",
     fetcher
   );
+  const { data: clients = [] } = useSWR<Client[]>("/api/clients", fetcher);
   const { data: expenses = [], mutate: mutateExpenses } = useSWR<Expense[]>(
     periodType === "custom" && customStartDate && customEndDate
       ? `/api/expenses?startDate=${customStartDate}&endDate=${customEndDate}`
@@ -226,11 +238,15 @@ export default function FinancialsPage() {
       if (project.payment_date) {
         const paymentDate = new Date(project.payment_date);
         if (paymentDate >= dateRange.start && paymentDate <= dateRange.end) {
+          const clientName =
+            clients.find((c) => c.id === project.client_id)?.name ||
+            (project as { clients?: { name?: string } }).clients?.name ||
+            "Unknown";
           allPayments.push({
             id: project.id,
             project_id: project.id,
             project_name: project.name,
-            client_name: (project.clients?.name || "Unknown") as string,
+            client_name: clientName,
             amount: project.amount_paid || 0,
             date: project.payment_date,
           });
@@ -241,7 +257,7 @@ export default function FinancialsPage() {
     return allPayments.sort(
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
     );
-  }, [projects, dateRange]);
+  }, [projects, dateRange, clients]);
 
   // Calculate KPIs
   const kpis = useMemo(() => {
@@ -266,6 +282,30 @@ export default function FinancialsPage() {
       outstandingReceivables,
     };
   }, [payments, filteredExpenses, projects]);
+
+  const outstandingReceivablesRows = useMemo(() => {
+    return projects
+      .filter((p) => p.status !== "cancelled")
+      .map((p) => {
+        const projectPrice = Number(p.revenue || 0);
+        const totalPaid = Number(p.amount_paid || 0);
+        const outstanding = Math.max(0, projectPrice - totalPaid);
+        const clientName =
+          clients.find((c) => c.id === p.client_id)?.name ||
+          (p as { clients?: { name?: string } }).clients?.name ||
+          "Unknown";
+        return {
+          id: p.id,
+          project_name: p.name,
+          client_name: clientName,
+          revenue: projectPrice,
+          paid: totalPaid,
+          outstanding,
+        };
+      })
+      .filter((row) => row.outstanding > 0)
+      .sort((a, b) => b.outstanding - a.outstanding);
+  }, [projects, clients]);
 
   // Prepare chart data (monthly breakdown)
   const chartData = useMemo(() => {
@@ -576,9 +616,20 @@ export default function FinancialsPage() {
         </CardContent>
       </Card>
 
-      {/* KPI Cards */}
+      {/* KPI Cards — click for line-item breakdown */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
+        <Card
+          role="button"
+          tabIndex={0}
+          className="cursor-pointer transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          onClick={() => setFinancialDetail("income")}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              setFinancialDetail("income");
+            }
+          }}
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Income</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
@@ -592,12 +643,23 @@ export default function FinancialsPage() {
               })}
             </div>
             <p className="text-xs text-muted-foreground">
-              Total payments received
+              Total payments received — click for details
             </p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card
+          role="button"
+          tabIndex={0}
+          className="cursor-pointer transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          onClick={() => setFinancialDetail("expenses")}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              setFinancialDetail("expenses");
+            }
+          }}
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Expenses</CardTitle>
             <Receipt className="h-4 w-4 text-muted-foreground" />
@@ -610,11 +672,24 @@ export default function FinancialsPage() {
                 maximumFractionDigits: 2,
               })}
             </div>
-            <p className="text-xs text-muted-foreground">Total expenses</p>
+            <p className="text-xs text-muted-foreground">
+              Total expenses — click for details
+            </p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card
+          role="button"
+          tabIndex={0}
+          className="cursor-pointer transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          onClick={() => setFinancialDetail("netprofit")}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              setFinancialDetail("netprofit");
+            }
+          }}
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Net Profit</CardTitle>
             {kpis.netProfit >= 0 ? (
@@ -635,11 +710,24 @@ export default function FinancialsPage() {
                 maximumFractionDigits: 2,
               })}
             </div>
-            <p className="text-xs text-muted-foreground">Income - Expenses</p>
+            <p className="text-xs text-muted-foreground">
+              Income − Expenses — click for breakdown
+            </p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card
+          role="button"
+          tabIndex={0}
+          className="cursor-pointer transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          onClick={() => setFinancialDetail("receivables")}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              setFinancialDetail("receivables");
+            }
+          }}
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
               Outstanding Receivables
@@ -655,7 +743,7 @@ export default function FinancialsPage() {
               })}
             </div>
             <p className="text-xs text-muted-foreground">
-              Unpaid project amounts
+              Unpaid project amounts — click for details
             </p>
           </CardContent>
         </Card>
@@ -967,6 +1055,316 @@ export default function FinancialsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* KPI breakdown dialog */}
+      <Dialog
+        open={financialDetail !== null}
+        onOpenChange={(open) => !open && setFinancialDetail(null)}
+      >
+        <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>
+              {financialDetail === "income" && "Income — payments in period"}
+              {financialDetail === "expenses" && "Expenses — line items in period"}
+              {financialDetail === "netprofit" &&
+                "Net profit — income and expenses in period"}
+              {financialDetail === "receivables" &&
+                "Outstanding receivables — unpaid project amounts"}
+            </DialogTitle>
+            <DialogDescription>
+              Amounts match the selected period filter above.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="overflow-auto flex-1 min-h-0 rounded-md border">
+            {financialDetail === "income" && (
+              <table className="w-full text-sm">
+                <thead className="bg-muted sticky top-0 z-10">
+                  <tr className="border-b text-left">
+                    <th className="p-3 font-medium">Project</th>
+                    <th className="p-3 font-medium">Client</th>
+                    <th className="p-3 font-medium">Payment date</th>
+                    <th className="p-3 font-medium text-right">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {payments.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={4}
+                        className="p-6 text-center text-muted-foreground"
+                      >
+                        No payments in this period
+                      </td>
+                    </tr>
+                  ) : (
+                    payments.map((p) => (
+                      <tr key={p.id} className="border-b last:border-0">
+                        <td className="p-3">{p.project_name}</td>
+                        <td className="p-3 text-muted-foreground">
+                          {p.client_name}
+                        </td>
+                        <td className="p-3">
+                          {new Date(p.date).toLocaleDateString()}
+                        </td>
+                        <td className="p-3 text-right font-medium text-green-600">
+                          {formatRm(p.amount)}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+                {payments.length > 0 && (
+                  <tfoot className="bg-muted/50 border-t font-semibold">
+                    <tr>
+                      <td colSpan={3} className="p-3 text-right">
+                        Total
+                      </td>
+                      <td className="p-3 text-right text-green-600">
+                        {formatRm(kpis.income)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            )}
+
+            {financialDetail === "expenses" && (
+              <table className="w-full text-sm">
+                <thead className="bg-muted sticky top-0 z-10">
+                  <tr className="border-b text-left">
+                    <th className="p-3 font-medium">Date</th>
+                    <th className="p-3 font-medium">Category</th>
+                    <th className="p-3 font-medium">Project</th>
+                    <th className="p-3 font-medium">Vendor</th>
+                    <th className="p-3 font-medium text-right">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredExpenses.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={5}
+                        className="p-6 text-center text-muted-foreground"
+                      >
+                        No expenses in this period
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredExpenses.map((e) => (
+                      <tr key={e.id} className="border-b last:border-0">
+                        <td className="p-3 whitespace-nowrap">
+                          {new Date(e.spent_at).toLocaleDateString()}
+                        </td>
+                        <td className="p-3">{e.category}</td>
+                        <td className="p-3 text-muted-foreground">
+                          {e.project_id
+                            ? e.project?.name || "—"
+                            : "General"}
+                        </td>
+                        <td className="p-3 text-muted-foreground">
+                          {e.vendor || "—"}
+                        </td>
+                        <td className="p-3 text-right font-medium text-red-600">
+                          {formatRm(e.amount)}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+                {filteredExpenses.length > 0 && (
+                  <tfoot className="bg-muted/50 border-t font-semibold">
+                    <tr>
+                      <td colSpan={4} className="p-3 text-right">
+                        Total
+                      </td>
+                      <td className="p-3 text-right text-red-600">
+                        {formatRm(kpis.expenses)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            )}
+
+            {financialDetail === "receivables" && (
+              <table className="w-full text-sm">
+                <thead className="bg-muted sticky top-0 z-10">
+                  <tr className="border-b text-left">
+                    <th className="p-3 font-medium">Project</th>
+                    <th className="p-3 font-medium">Client</th>
+                    <th className="p-3 font-medium text-right">Project price</th>
+                    <th className="p-3 font-medium text-right">Paid</th>
+                    <th className="p-3 font-medium text-right">Outstanding</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {outstandingReceivablesRows.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={5}
+                        className="p-6 text-center text-muted-foreground"
+                      >
+                        No outstanding receivables (all active projects fully
+                        paid or no unpaid balance)
+                      </td>
+                    </tr>
+                  ) : (
+                    outstandingReceivablesRows.map((row) => (
+                      <tr key={row.id} className="border-b last:border-0">
+                        <td className="p-3">{row.project_name}</td>
+                        <td className="p-3 text-muted-foreground">
+                          {row.client_name}
+                        </td>
+                        <td className="p-3 text-right tabular-nums">
+                          {formatRm(row.revenue)}
+                        </td>
+                        <td className="p-3 text-right tabular-nums text-muted-foreground">
+                          {formatRm(row.paid)}
+                        </td>
+                        <td className="p-3 text-right font-medium text-orange-600 tabular-nums">
+                          {formatRm(row.outstanding)}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+                {outstandingReceivablesRows.length > 0 && (
+                  <tfoot className="bg-muted/50 border-t font-semibold">
+                    <tr>
+                      <td colSpan={4} className="p-3 text-right">
+                        Total outstanding
+                      </td>
+                      <td className="p-3 text-right text-orange-600">
+                        {formatRm(kpis.outstandingReceivables)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            )}
+
+            {financialDetail === "netprofit" && (
+              <table className="w-full text-sm">
+                <thead className="bg-muted sticky top-0 z-10">
+                  <tr className="border-b text-left">
+                    <th className="p-3 font-medium">Type</th>
+                    <th className="p-3 font-medium">Description</th>
+                    <th className="p-3 font-medium">Date</th>
+                    <th className="p-3 font-medium text-right">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {payments.length === 0 && filteredExpenses.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={4}
+                        className="p-6 text-center text-muted-foreground"
+                      >
+                        No income or expenses in this period
+                      </td>
+                    </tr>
+                  ) : (
+                    <>
+                      {payments.map((p) => (
+                        <tr key={`inc-${p.id}`} className="border-b">
+                          <td className="p-3">
+                            <Badge
+                              variant="secondary"
+                              className="bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-400"
+                            >
+                              Income
+                            </Badge>
+                          </td>
+                          <td className="p-3">
+                            {p.project_name}
+                            <span className="text-muted-foreground">
+                              {" "}
+                              · {p.client_name}
+                            </span>
+                          </td>
+                          <td className="p-3 whitespace-nowrap">
+                            {new Date(p.date).toLocaleDateString()}
+                          </td>
+                          <td className="p-3 text-right font-medium text-green-600 tabular-nums">
+                            +{formatRm(p.amount)}
+                          </td>
+                        </tr>
+                      ))}
+                      {filteredExpenses.map((e) => (
+                        <tr key={`exp-${e.id}`} className="border-b">
+                          <td className="p-3">
+                            <Badge
+                              variant="secondary"
+                              className="bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-400"
+                            >
+                              Expense
+                            </Badge>
+                          </td>
+                          <td className="p-3">
+                            {e.category}
+                            {e.project?.name && (
+                              <span className="text-muted-foreground">
+                                {" "}
+                                · {e.project.name}
+                              </span>
+                            )}
+                            {!e.project_id && (
+                              <span className="text-muted-foreground">
+                                {" "}
+                                · General
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-3 whitespace-nowrap">
+                            {new Date(e.spent_at).toLocaleDateString()}
+                          </td>
+                          <td className="p-3 text-right font-medium text-red-600 tabular-nums">
+                            −{formatRm(e.amount)}
+                          </td>
+                        </tr>
+                      ))}
+                    </>
+                  )}
+                </tbody>
+                {(payments.length > 0 || filteredExpenses.length > 0) && (
+                  <tfoot className="bg-muted/50 border-t">
+                    <tr className="font-semibold">
+                      <td colSpan={3} className="p-3 text-right">
+                        Total income
+                      </td>
+                      <td className="p-3 text-right text-green-600">
+                        {formatRm(kpis.income)}
+                      </td>
+                    </tr>
+                    <tr className="font-semibold">
+                      <td colSpan={3} className="p-3 text-right">
+                        Total expenses
+                      </td>
+                      <td className="p-3 text-right text-red-600">
+                        {formatRm(kpis.expenses)}
+                      </td>
+                    </tr>
+                    <tr className="font-bold border-t">
+                      <td colSpan={3} className="p-3 text-right">
+                        Net profit
+                      </td>
+                      <td
+                        className={`p-3 text-right tabular-nums ${
+                          kpis.netProfit >= 0
+                            ? "text-green-600"
+                            : "text-red-600"
+                        }`}
+                      >
+                        {formatRm(kpis.netProfit)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Expense Dialog */}
       <Dialog open={expenseDialogOpen} onOpenChange={setExpenseDialogOpen}>
