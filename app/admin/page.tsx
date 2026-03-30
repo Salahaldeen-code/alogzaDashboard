@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, Suspense } from "react";
+import { useState, useEffect, useRef, useMemo, Suspense } from "react";
 import type React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import useSWR, { mutate } from "swr";
@@ -70,6 +70,7 @@ import {
   ChevronUp,
   ListTodo,
   Search,
+  Loader2,
 } from "lucide-react";
 import type {
   RevenueTarget,
@@ -89,6 +90,39 @@ const fetcher = async (url: string) => {
   if (!response.ok) throw new Error("Failed to fetch");
   return response.json();
 };
+
+function ProjectMilestoneProgress({ projectId }: { projectId: string }) {
+  const { data: milestones } = useSWR<any[]>(
+    projectId ? `/api/projects/${projectId}/milestones` : null,
+    fetcher
+  );
+
+  const total = milestones?.length ?? 0;
+  const completed = (milestones ?? []).filter((m) => m?.status === "completed")
+    .length;
+  const percentage = total > 0 ? (completed / total) * 100 : 0;
+
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between text-xs">
+        <span className="text-muted-foreground">Milestone Completion</span>
+        <span className={total > 0 ? "text-muted-foreground" : "text-muted-foreground"}>
+          {milestones ? `${percentage.toFixed(1)}%` : "—"}
+        </span>
+      </div>
+      <div className="h-2 bg-muted rounded-full overflow-hidden">
+        <div
+          className={`h-full ${
+            total > 0 && completed === total ? "bg-green-500" : "bg-primary"
+          }`}
+          style={{
+            width: `${Math.min(percentage, 100)}%`,
+          }}
+        />
+      </div>
+    </div>
+  );
+}
 
 function AdminPageContent() {
   const { toast } = useToast();
@@ -2130,6 +2164,27 @@ function ProjectManager({
         | "on-hold",
     });
 
+    const projectStart = formData.start_date || "";
+    const projectEnd = formData.end_date || "";
+
+    // If exact project start/end dates are missing, fall back to the selected month constraints
+    // so we can still disable dates outside the selected project period.
+    const projectWindowStartMin =
+      projectStart || startDateConstraints.min || "";
+    const projectWindowEndMax = projectEnd || endDateConstraints.max || "";
+
+    const milestoneStartMin = projectWindowStartMin || undefined;
+    const milestoneStartMax = projectWindowEndMax || undefined;
+
+    // Due date must be within the project window, and not before milestone start.
+    const milestoneDueMin = (() => {
+      const ms = milestoneFormData.start_date || "";
+      const base = projectWindowStartMin || "";
+      if (ms && base) return ms < base ? base : ms;
+      return ms || base || undefined;
+    })();
+    const milestoneDueMax = projectWindowEndMax || undefined;
+
     useEffect(() => {
       if (editingMilestoneId) {
         // Check if editing a temp milestone (for new project)
@@ -2177,6 +2232,59 @@ function ProjectManager({
 
     const handleMilestoneSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
+
+      // Enforce milestone date bounds based on the parent project window.
+      // This prevents creating milestones with dates outside the project duration.
+      const start = milestoneFormData.start_date || "";
+      const due = milestoneFormData.due_date || "";
+
+      if (milestoneStartMin && start && start < milestoneStartMin) {
+        toast({
+          title: "Invalid Start Date",
+          description:
+            "Milestone start date cannot be before the project start date.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (milestoneStartMax && start && start > milestoneStartMax) {
+        toast({
+          title: "Invalid Start Date",
+          description:
+            "Milestone start date cannot be after the project end date.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (milestoneStartMin && due && due < milestoneStartMin) {
+        toast({
+          title: "Invalid Due Date",
+          description:
+            "Milestone due date cannot be before the project start date.",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (start && due && due < start) {
+        toast({
+          title: "Invalid Date Range",
+          description: "Milestone due date cannot be before milestone start date.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (milestoneDueMax && due && due > milestoneDueMax) {
+        toast({
+          title: "Invalid Due Date",
+          description:
+            "Milestone due date cannot be after the project end date.",
+          variant: "destructive",
+        });
+        return;
+      }
 
       // If creating a new project (no editingId), store in tempMilestones
       if (!editingId) {
@@ -2294,6 +2402,13 @@ function ProjectManager({
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
+              {(projectStart || projectEnd) && (
+                <div className="col-span-2 text-xs text-muted-foreground -mt-1">
+                  Project window:{" "}
+                  {projectWindowStartMin ? formatDate(projectWindowStartMin) : "—"} -{" "}
+                  {projectWindowEndMax ? formatDate(projectWindowEndMax) : "—"}
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="milestone-start-date">Start Date</Label>
                 <DatePicker
@@ -2306,6 +2421,9 @@ function ProjectManager({
                     })
                   }
                   placeholder="Select start date"
+                  min={milestoneStartMin}
+                  max={milestoneStartMax}
+                  defaultMonth={milestoneStartMin}
                 />
               </div>
               <div className="space-y-2">
@@ -2320,7 +2438,9 @@ function ProjectManager({
                     })
                   }
                   placeholder="Select due date"
-                  min={milestoneFormData.start_date || undefined}
+                  min={milestoneDueMin}
+                  max={milestoneDueMax}
+                  defaultMonth={milestoneStartMin}
                 />
               </div>
             </div>
@@ -2380,6 +2500,7 @@ function ProjectManager({
       actual_hours: "",
       status: "todo" as "todo" | "in-progress" | "done" | "blocked",
     });
+    const [taskSubmitting, setTaskSubmitting] = useState(false);
 
     // Fetch project developers
     const { data: projectDevelopersData } = useSWR<any[]>(
@@ -2481,60 +2602,57 @@ function ProjectManager({
 
     const handleTaskSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
+      if (taskSubmitting) return;
       if (!selectedMilestoneId) return;
 
-      // If creating a new project (no editingId), store in tempMilestones
-      if (!editingId) {
-        setTempMilestones((prev) =>
-          prev.map((m) => {
-            if (m.tempId === selectedMilestoneId) {
-              const taskData = {
-                tempId: editingTaskId || `task-${Date.now()}`,
-                title: taskFormData.title,
-                description: taskFormData.description || "",
-                developer_id: taskFormData.developer_id,
-                priority: taskFormData.priority,
-                due_date: taskFormData.due_date || "",
-                estimated_hours: taskFormData.estimated_hours
-                  ? Number.parseFloat(taskFormData.estimated_hours)
-                  : null,
-                actual_hours: taskFormData.actual_hours
-                  ? Number.parseFloat(taskFormData.actual_hours)
-                  : 0,
-                status: taskFormData.status,
-              };
-
-              if (editingTaskId) {
-                // Update existing task
-                return {
-                  ...m,
-                  tasks: m.tasks.map((t: any) =>
-                    t.tempId === editingTaskId ? taskData : t
-                  ),
+      setTaskSubmitting(true);
+      try {
+        // If creating a new project (no editingId), store in tempMilestones
+        if (!editingId) {
+          setTempMilestones((prev) =>
+            prev.map((m) => {
+              if (m.tempId === selectedMilestoneId) {
+                const taskData = {
+                  tempId: editingTaskId || `task-${Date.now()}`,
+                  title: taskFormData.title,
+                  description: taskFormData.description || "",
+                  developer_id: taskFormData.developer_id,
+                  priority: taskFormData.priority,
+                  due_date: taskFormData.due_date || "",
+                  estimated_hours: taskFormData.estimated_hours
+                    ? Number.parseFloat(taskFormData.estimated_hours)
+                    : null,
+                  actual_hours: taskFormData.actual_hours
+                    ? Number.parseFloat(taskFormData.actual_hours)
+                    : 0,
+                  status: taskFormData.status,
                 };
-              } else {
-                // Add new task
+
+                if (editingTaskId) {
+                  return {
+                    ...m,
+                    tasks: m.tasks.map((t: any) =>
+                      t.tempId === editingTaskId ? taskData : t
+                    ),
+                  };
+                }
                 return {
                   ...m,
                   tasks: [...(m.tasks || []), taskData],
                 };
               }
-            }
-            return m;
-          })
-        );
-        toast({
-          title: `Task ${editingTaskId ? "updated" : "created"} successfully`,
-        });
-        setTaskDialogOpen(false);
-        setEditingTaskId(null);
-        setSelectedMilestoneId(null);
-        return;
-      }
+              return m;
+            })
+          );
+          toast({
+            title: `Task ${editingTaskId ? "updated" : "created"} successfully`,
+          });
+          setTaskDialogOpen(false);
+          setEditingTaskId(null);
+          setSelectedMilestoneId(null);
+          return;
+        }
 
-      // Existing project - save to API
-
-      try {
         const url = editingTaskId
           ? `/api/tasks/${editingTaskId}`
           : `/api/milestones/${selectedMilestoneId}/tasks`;
@@ -2573,6 +2691,8 @@ function ProjectManager({
           description: error.message,
           variant: "destructive",
         });
+      } finally {
+        setTaskSubmitting(false);
       }
     };
 
@@ -2593,7 +2713,13 @@ function ProjectManager({
           .filter(Boolean);
 
     return (
-      <Dialog open={taskDialogOpen} onOpenChange={setTaskDialogOpen}>
+      <Dialog
+        open={taskDialogOpen}
+        onOpenChange={(next) => {
+          setTaskDialogOpen(next);
+          if (!next) setTaskSubmitting(false);
+        }}
+      >
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -2610,7 +2736,11 @@ function ProjectManager({
               {!selectedMilestone && "Add a task to this milestone"}
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleTaskSubmit} className="space-y-6">
+          <form
+            onSubmit={handleTaskSubmit}
+            className="space-y-6"
+            aria-busy={taskSubmitting}
+          >
             {/* Basic Information Section */}
             <div className="space-y-4">
               <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground pb-2 border-b">
@@ -2633,6 +2763,7 @@ function ProjectManager({
                   required
                   placeholder="e.g., Implement user authentication"
                   className="h-10"
+                  disabled={taskSubmitting}
                 />
                 <p className="text-xs text-muted-foreground">
                   Provide a clear, concise title for this task
@@ -2657,6 +2788,7 @@ function ProjectManager({
                   placeholder="Describe the task requirements, acceptance criteria, and any relevant details..."
                   rows={4}
                   className="resize-none"
+                  disabled={taskSubmitting}
                 />
                 <p className="text-xs text-muted-foreground">
                   Add detailed information about what needs to be done
@@ -2696,6 +2828,7 @@ function ProjectManager({
                         })
                       }
                       required
+                      disabled={taskSubmitting}
                     >
                       <SelectTrigger className="h-10">
                         <SelectValue placeholder="Select a developer" />
@@ -2730,6 +2863,7 @@ function ProjectManager({
                         priority: value,
                       })
                     }
+                    disabled={taskSubmitting}
                   >
                     <SelectTrigger className="h-10">
                       <SelectValue />
@@ -2778,6 +2912,7 @@ function ProjectManager({
                         status: value,
                       })
                     }
+                    disabled={taskSubmitting}
                   >
                     <SelectTrigger className="h-10">
                       <SelectValue />
@@ -2829,6 +2964,7 @@ function ProjectManager({
                     placeholder="Select due date"
                     min={minDate}
                     className="h-10"
+                    disabled={taskSubmitting}
                   />
                   {minDate && (
                     <p className="text-xs text-muted-foreground">
@@ -2873,6 +3009,7 @@ function ProjectManager({
                       }}
                       placeholder="0.0"
                       className="h-10 pr-10"
+                      disabled={taskSubmitting}
                     />
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
                       hrs
@@ -2908,6 +3045,7 @@ function ProjectManager({
                         }}
                         placeholder="0.0"
                         className="h-10 pr-10"
+                        disabled={taskSubmitting}
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
                         hrs
@@ -2927,6 +3065,7 @@ function ProjectManager({
                 type="button"
                 variant="outline"
                 className="flex-1"
+                disabled={taskSubmitting}
                 onClick={() => {
                   setTaskDialogOpen(false);
                   setEditingTaskId(null);
@@ -2938,9 +3077,16 @@ function ProjectManager({
               <Button
                 type="submit"
                 className="flex-1"
-                disabled={availableDevelopers.length === 0}
+                disabled={
+                  taskSubmitting || availableDevelopers.length === 0
+                }
               >
-                {editingTaskId ? (
+                {taskSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    {editingTaskId ? "Saving…" : "Creating…"}
+                  </>
+                ) : editingTaskId ? (
                   <>
                     <CheckCircle2 className="h-4 w-4 mr-2" />
                     Update Task
@@ -4567,34 +4713,7 @@ function ProjectManager({
                           </div>
                         </div>
 
-                        {project.budget && (
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between text-xs">
-                              <span className="text-muted-foreground">
-                                Budget Usage
-                              </span>
-                              <span
-                                className={
-                                  isOverBudget
-                                    ? "text-destructive"
-                                    : "text-muted-foreground"
-                                }
-                              >
-                                {budgetUsed.toFixed(1)}%
-                              </span>
-                            </div>
-                            <div className="h-2 bg-muted rounded-full overflow-hidden">
-                              <div
-                                className={`h-full ${
-                                  isOverBudget ? "bg-destructive" : "bg-primary"
-                                }`}
-                                style={{
-                                  width: `${Math.min(budgetUsed, 100)}%`,
-                                }}
-                              />
-                            </div>
-                          </div>
-                        )}
+                        <ProjectMilestoneProgress projectId={project.id} />
                       </div>
                     </CardContent>
                   </Card>
@@ -6631,8 +6750,10 @@ function UserManager({ toast }: { toast: any }) {
 function TaskManager({ toast }: { toast: any }) {
   const { data: tasks, error, mutate } = useSWR<Task[]>("/api/tasks", fetcher);
   const { data: developers } = useSWR<Developer[]>("/api/developers", fetcher);
+  const { data: users } = useSWR<User[]>("/api/users", fetcher);
   const { data: projects } = useSWR<Project[]>("/api/projects", fetcher);
   const [open, setOpen] = useState(false);
+  const [taskSubmitting, setTaskSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     title: "",
@@ -6708,8 +6829,34 @@ function TaskManager({ toast }: { toast: any }) {
       })
     : [];
 
+  const generalUserEmails = useMemo(() => {
+    const s = new Set<string>();
+    for (const u of users ?? []) {
+      if (u.role === "general" && u.email) s.add(u.email.toLowerCase());
+    }
+    return s;
+  }, [users]);
+
+  /** Active developers plus any developer row tied to a user with role "general" (e.g. inactive in roster). */
+  const developerSelectOptions = useMemo(() => {
+    if (!developers) return [];
+    const base = developers.filter(
+      (d) =>
+        d.status === "active" ||
+        (d.email != null &&
+          d.email !== "" &&
+          generalUserEmails.has(d.email.toLowerCase()))
+    );
+    const selId = formData.developer_id;
+    if (!selId || base.some((d) => d.id === selId)) return base;
+    const missing = developers.find((d) => d.id === selId);
+    if (!missing) return base;
+    return [...base, missing].sort((a, b) => a.name.localeCompare(b.name));
+  }, [developers, generalUserEmails, formData.developer_id]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (taskSubmitting) return;
 
     if (!formData.developer_id) {
       toast({
@@ -6720,6 +6867,7 @@ function TaskManager({ toast }: { toast: any }) {
       return;
     }
 
+    setTaskSubmitting(true);
     try {
       const data = {
         title: formData.title,
@@ -6772,6 +6920,8 @@ function TaskManager({ toast }: { toast: any }) {
         description: error.message,
         variant: "destructive",
       });
+    } finally {
+      setTaskSubmitting(false);
     }
   };
 
@@ -7280,7 +7430,13 @@ function TaskManager({ toast }: { toast: any }) {
       </div>
 
       {/* Add/Edit Task Dialog */}
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next);
+          if (!next) setTaskSubmitting(false);
+        }}
+      >
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
@@ -7292,7 +7448,11 @@ function TaskManager({ toast }: { toast: any }) {
                 : "Assign a new task to a developer"}
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form
+            onSubmit={handleSubmit}
+            className="space-y-4"
+            aria-busy={taskSubmitting}
+          >
             <div className="space-y-2">
               <Label htmlFor="title">Title *</Label>
               <Input
@@ -7303,6 +7463,7 @@ function TaskManager({ toast }: { toast: any }) {
                 }
                 required
                 placeholder="Enter task title"
+                disabled={taskSubmitting}
               />
             </div>
             <div className="space-y-2">
@@ -7315,6 +7476,7 @@ function TaskManager({ toast }: { toast: any }) {
                 }
                 rows={3}
                 placeholder="Enter task description"
+                disabled={taskSubmitting}
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -7325,18 +7487,17 @@ function TaskManager({ toast }: { toast: any }) {
                   onValueChange={(value) =>
                     setFormData({ ...formData, developer_id: value })
                   }
+                  disabled={taskSubmitting}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select developer" />
                   </SelectTrigger>
                   <SelectContent>
-                    {developers
-                      ?.filter((d) => d.status === "active")
-                      .map((developer) => (
-                        <SelectItem key={developer.id} value={developer.id}>
-                          {developer.name} - {developer.role}
-                        </SelectItem>
-                      ))}
+                    {developerSelectOptions.map((developer) => (
+                      <SelectItem key={developer.id} value={developer.id}>
+                        {developer.name} - {developer.role}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -7350,6 +7511,7 @@ function TaskManager({ toast }: { toast: any }) {
                       project_id: value === "none" ? "" : value,
                     })
                   }
+                  disabled={taskSubmitting}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select project" />
@@ -7373,6 +7535,7 @@ function TaskManager({ toast }: { toast: any }) {
                   onValueChange={(value: any) =>
                     setFormData({ ...formData, priority: value })
                   }
+                  disabled={taskSubmitting}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -7392,6 +7555,7 @@ function TaskManager({ toast }: { toast: any }) {
                   onValueChange={(value: any) =>
                     setFormData({ ...formData, status: value })
                   }
+                  disabled={taskSubmitting}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -7413,6 +7577,7 @@ function TaskManager({ toast }: { toast: any }) {
                   onChange={(e) =>
                     setFormData({ ...formData, due_date: e.target.value })
                   }
+                  disabled={taskSubmitting}
                 />
               </div>
             </div>
@@ -7428,12 +7593,14 @@ function TaskManager({ toast }: { toast: any }) {
                   setFormData({ ...formData, estimated_hours: e.target.value })
                 }
                 placeholder="e.g., 8.5"
+                disabled={taskSubmitting}
               />
             </div>
             <div className="flex justify-end gap-2 pt-4">
               <Button
                 type="button"
                 variant="outline"
+                disabled={taskSubmitting}
                 onClick={() => {
                   setOpen(false);
                   setEditingId(null);
@@ -7441,8 +7608,17 @@ function TaskManager({ toast }: { toast: any }) {
               >
                 Cancel
               </Button>
-              <Button type="submit">
-                {editingId ? "Update Task" : "Create Task"}
+              <Button type="submit" disabled={taskSubmitting}>
+                {taskSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    {editingId ? "Saving…" : "Creating…"}
+                  </>
+                ) : editingId ? (
+                  "Update Task"
+                ) : (
+                  "Create Task"
+                )}
               </Button>
             </div>
           </form>

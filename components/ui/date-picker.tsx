@@ -20,6 +20,7 @@ interface DatePickerProps {
   disabled?: boolean;
   min?: string;
   max?: string;
+  defaultMonth?: string;
   className?: string;
   id?: string;
 }
@@ -31,6 +32,7 @@ export function DatePicker({
   disabled = false,
   min,
   max,
+  defaultMonth,
   className,
   id,
 }: DatePickerProps) {
@@ -51,6 +53,48 @@ export function DatePicker({
   // Convert min/max strings to Date objects for the calendar
   const minDate = min ? new Date(min) : undefined;
   const maxDate = max ? new Date(max) : undefined;
+  const fallbackDefaultMonth = minDate ?? date ?? undefined;
+  const defaultMonthDate = (defaultMonth ? new Date(defaultMonth) : undefined) ?? fallbackDefaultMonth;
+
+  // Normalize to local midnight to avoid timezone off-by-one.
+  const minTime = minDate
+    ? new Date(minDate.getFullYear(), minDate.getMonth(), minDate.getDate()).getTime()
+    : undefined;
+  const maxTime = maxDate
+    ? new Date(maxDate.getFullYear(), maxDate.getMonth(), maxDate.getDate()).getTime()
+    : undefined;
+
+  const disabledDays = (day: Date) => {
+    if (disabled) return true;
+    const t = new Date(day.getFullYear(), day.getMonth(), day.getDate()).getTime();
+    if (minTime !== undefined && t < minTime) return true;
+    if (maxTime !== undefined && t > maxTime) return true;
+    return false;
+  };
+
+  const CustomDayButton = (props: any) => {
+    const { day, modifiers, ...buttonProps } = props;
+    const t = new Date(
+      day.date.getFullYear(),
+      day.date.getMonth(),
+      day.date.getDate()
+    ).getTime();
+
+    const isOutOfPeriod =
+      (minTime !== undefined && t < minTime) ||
+      (maxTime !== undefined && t > maxTime);
+
+    if (modifiers?.disabled && isOutOfPeriod) {
+      return (
+        <button
+          {...buttonProps}
+          title="This date is out of the project period"
+        />
+      );
+    }
+
+    return <button {...buttonProps} />;
+  };
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -75,10 +119,15 @@ export function DatePicker({
           mode="single"
           selected={date}
           onSelect={handleSelect}
-          disabled={disabled}
+          disabled={disabledDays}
           fromDate={minDate}
           toDate={maxDate}
+          defaultMonth={defaultMonthDate}
           initialFocus
+          showOutsideDays={true}
+          components={{
+            DayButton: CustomDayButton,
+          }}
         />
       </PopoverContent>
     </Popover>

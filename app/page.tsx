@@ -41,6 +41,7 @@ import {
   Target,
   TrendingUp,
   FolderKanban,
+  Loader2,
 } from "lucide-react";
 import type { Task, Developer, Project } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
@@ -64,6 +65,7 @@ export default function DeveloperDashboard() {
   const [trackingTaskId, setTrackingTaskId] = useState<string | null>(null);
   const [trackingStartTime, setTrackingStartTime] = useState<Date | null>(null);
   const [elapsedTime, setElapsedTime] = useState<string>("0h 0m");
+  const [taskSubmitting, setTaskSubmitting] = useState(false);
 
   // Update elapsed time every second when tracking
   useEffect(() => {
@@ -267,6 +269,7 @@ export default function DeveloperDashboard() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (taskSubmitting) return;
 
     if (!currentDeveloper) {
       toast({
@@ -277,6 +280,7 @@ export default function DeveloperDashboard() {
       return;
     }
 
+    setTaskSubmitting(true);
     try {
       const url = editingTask ? `/api/tasks/${editingTask.id}` : "/api/tasks";
       const method = editingTask ? "PUT" : "POST";
@@ -319,6 +323,8 @@ export default function DeveloperDashboard() {
         description: error.message,
         variant: "destructive",
       });
+    } finally {
+      setTaskSubmitting(false);
     }
   };
 
@@ -787,7 +793,13 @@ export default function DeveloperDashboard() {
       )}
 
       {/* Add/Edit Task Dialog */}
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next);
+          if (!next) setTaskSubmitting(false);
+        }}
+      >
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>
@@ -900,6 +912,7 @@ export default function DeveloperDashboard() {
               <Button
                 type="button"
                 variant="outline"
+                disabled={taskSubmitting}
                 onClick={() => {
                   setOpen(false);
                   setEditingTask(null);
@@ -907,8 +920,17 @@ export default function DeveloperDashboard() {
               >
                 Cancel
               </Button>
-              <Button type="submit">
-                {editingTask ? "Update Task" : "Create Task"}
+              <Button type="submit" disabled={taskSubmitting}>
+                {taskSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    {editingTask ? "Saving…" : "Creating…"}
+                  </>
+                ) : editingTask ? (
+                  "Update Task"
+                ) : (
+                  "Create Task"
+                )}
               </Button>
             </div>
           </form>
