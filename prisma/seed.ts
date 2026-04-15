@@ -167,6 +167,7 @@ async function main() {
   console.log('🚀 Creating projects...')
   await Promise.all([
     prisma.project.create({
+   
       data: {
         clientId: client1.id,
         name: 'Cloud Migration',
